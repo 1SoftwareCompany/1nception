@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <RootNamespace>One.Inception</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Machine.Specifications" Version="1.1.2" />
+    <PackageReference Include="Machine.Specifications.Runner.VisualStudio" Version="2.10.2" />
+    <PackageReference Include="Machine.Specifications.Should" Version="1.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\One.Inception\One.Inception.csproj" />
+  </ItemGroup>
+</Project>
