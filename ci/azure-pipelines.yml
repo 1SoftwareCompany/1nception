@@ -1,6 +1,6 @@
 ---
 variables:
-  PROJECT_DIR: Elders.Cronus
+  PROJECT_DIR: One.Inception
 
 trigger:
   branches:
