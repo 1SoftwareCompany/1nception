@@ -5,16 +5,17 @@ using System.Threading;
 using System.Threading.Tasks;
 using One.Inception.Cluster.Job;
 using Microsoft.Extensions.Logging;
+using One.Inception.Serializer;
 
 namespace One.Inception.EventStore.Index;
 
 public class RebuildIndex_EventToAggregateRootId_Job : InceptionJob<RebuildIndex_JobData>
 {
     private readonly IEventStorePlayer eventStorePlayer;
-    private readonly EventLookupInByteArray eventFinder;
+    private readonly IEventLookUp eventFinder;
     private readonly IIndexStore indexStore;
 
-    public RebuildIndex_EventToAggregateRootId_Job(IEventStorePlayer eventStorePlayer, EventLookupInByteArray eventFinder, IIndexStore indexStore, ILogger<RebuildIndex_EventToAggregateRootId_Job> logger) : base(logger)
+    public RebuildIndex_EventToAggregateRootId_Job(IEventStorePlayer eventStorePlayer, IEventLookUp eventFinder, IIndexStore indexStore, ILogger<RebuildIndex_EventToAggregateRootId_Job> logger) : base(logger)
     {
         this.eventStorePlayer = eventStorePlayer;
         this.eventFinder = eventFinder;
