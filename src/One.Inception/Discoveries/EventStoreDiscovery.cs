@@ -13,8 +13,7 @@ public class EventStoreDiscovery : DiscoveryBase<IEventStore>
         IEnumerable<DiscoveredModel> models = DiscoverIndices(context)
           .Concat(new[] {
                 new DiscoveredModel(typeof(IEventStoreFactory), typeof(EventStoreFactory), ServiceLifetime.Transient),
-                new DiscoveredModel(typeof(EventStoreFactory), typeof(EventStoreFactory), ServiceLifetime.Transient),
-                new DiscoveredModel(typeof(EventLookupInByteArray), typeof(EventLookupInByteArray), ServiceLifetime.Singleton)
+                new DiscoveredModel(typeof(EventStoreFactory), typeof(EventStoreFactory), ServiceLifetime.Transient)
           });
 
         bool hasEventStore = context.FindServiceExcept<IEventStore>([typeof(InceptionEventStore), typeof(MissingPersistence)]).Any();
@@ -25,8 +24,7 @@ public class EventStoreDiscovery : DiscoveryBase<IEventStore>
                 new DiscoveredModel(typeof(IMessageCounter), typeof(MissingPersistence), ServiceLifetime.Singleton),
                 new DiscoveredModel(typeof(IEventStorePlayer), typeof(MissingPersistence), ServiceLifetime.Singleton),
                 new DiscoveredModel(typeof(IIndexStore), typeof(MissingPersistence), ServiceLifetime.Singleton),
-                new DiscoveredModel(typeof(IEventStore), typeof(MissingPersistence), ServiceLifetime.Singleton),
-                new DiscoveredModel(typeof(EventLookupInByteArray), typeof(EventLookupInByteArray), ServiceLifetime.Singleton)
+                new DiscoveredModel(typeof(IEventStore), typeof(MissingPersistence), ServiceLifetime.Singleton)
               });
         }
 

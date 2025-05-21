@@ -12,6 +12,7 @@ using One.Inception.Projections.Cassandra.EventSourcing;
 using One.Inception.Workflow;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using One.Inception.Serializer;
 
 namespace One.Inception.Projections.Rebuilding;
 
@@ -20,7 +21,7 @@ public sealed class RebuildProjectionSequentially_Job : InceptionJob<RebuildProj
     private readonly IPublisher<ISystemSignal> signalPublisher;
     private readonly ISerializer serializer;
     private readonly IInceptionContextAccessor contextAccessor;
-    private readonly EventLookupInByteArray eventLookupInByteArray;
+    private readonly IEventLookUp eventLookup;
     private readonly IInitializableProjectionStore projectionStoreInitializer;
     private readonly IEventStorePlayer player;
     private readonly IProjectionWriter projectionWriter;
@@ -44,14 +45,14 @@ public sealed class RebuildProjectionSequentially_Job : InceptionJob<RebuildProj
         IPublisher<ISystemSignal> signalPublisher,
         ISerializer serializer,
         IInceptionContextAccessor contextAccessor,
-        EventLookupInByteArray eventLookupInByteArray,
+        IEventLookUp eventLookup,
         ILogger<RebuildProjectionSequentially_Job> logger)
         : base(logger)
     {
         this.signalPublisher = signalPublisher;
         this.serializer = serializer;
         this.contextAccessor = contextAccessor;
-        this.eventLookupInByteArray = eventLookupInByteArray;
+        this.eventLookup = eventLookup;
         this.projectionStoreInitializer = projectionStoreInitializer;
         this.progressTracker = progressTracker;
         this.projectionVersionHelper = projectionVersionHelper;
@@ -227,6 +228,6 @@ public sealed class RebuildProjectionSequentially_Job : InceptionJob<RebuildProj
     {
         byte[] bytes = Encoding.UTF8.GetBytes(eventTypeContract);
         var eventSpan = bytes.AsSpan();
-        return eventLookupInByteArray.HasEventId(data.AsSpan(), eventSpan);
+        return eventLookup.HasEventId(data.AsSpan(), eventSpan);
     }
 }
