@@ -15,7 +15,7 @@ public class InMemoryRetryWorkflow<TContext> : Workflow<TContext> where TContext
     public InMemoryRetryWorkflow(Workflow<TContext> workflow, ILogger logger)
     {
         this.workflow = workflow;
-        var retryStrategy = new Incremental(5, TimeSpan.FromMilliseconds(250), TimeSpan.FromMilliseconds(500));//Total 3 etries
+        ExponentialBackoff retryStrategy = new ExponentialBackoff(5, new TimeSpan(1_280_000), new TimeSpan(100_000_000), new TimeSpan(160_000)); // 128ms, 10000ms, 16ms
         retryPolicy = new RetryPolicy(new TransientErrorCatchAllStrategy(), retryStrategy, logger);
     }
 
