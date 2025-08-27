@@ -19,10 +19,11 @@ public class ApplicationServiceSubscriberWorkflow : ISubscriberWorkflowFactory<I
     public IWorkflow GetWorkflow()
     {
         ILogger<ApplicationServiceSubscriberWorkflow> logger = serviceProvider.GetRequiredService<ILogger<ApplicationServiceSubscriberWorkflow>>();
+        RetryStrategyFactory fact = serviceProvider.GetRequiredService<RetryStrategyFactory>();
 
         MessageHandleWorkflow messageHandleWorkflow = new MessageHandleWorkflow(new CreateScopedHandlerWorkflow());
         ScopedMessageWorkflow scopedWorkflow = new ScopedMessageWorkflow(messageHandleWorkflow, serviceProvider);
-        InMemoryRetryWorkflow<HandleContext> retryableWorkflow = new InMemoryRetryWorkflow<HandleContext>(scopedWorkflow, logger);
+        InMemoryRetryWorkflow<HandleContext> retryableWorkflow = new InMemoryRetryWorkflow<HandleContext>(scopedWorkflow, fact, logger);
         DiagnosticsWorkflow<HandleContext> diagnosticsWorkflow = new DiagnosticsWorkflow<HandleContext>(retryableWorkflow, serviceProvider.GetRequiredService<DiagnosticListener>(), serviceProvider.GetRequiredService<ActivitySource>());
         ExceptionEaterWorkflow<HandleContext> exceptionEater = new ExceptionEaterWorkflow<HandleContext>(diagnosticsWorkflow);
 

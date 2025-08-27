@@ -10,6 +10,7 @@ using One.Inception.Multitenancy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using One.Inception.FaultHandling;
 
 namespace One.Inception;
 
@@ -35,6 +36,7 @@ public static class InceptionServiceCollectionExtensions
         services.AddDefaultSubscribers(provider);
         services.AddJobManager();
         services.AddDangerZone();
+        services.AddRetryStrategyOptions();
 
         var discoveryFinder = new DiscoveryScanner();
         var discoveryContext = new DiscoveryContext(AssemblyLoader.Assemblies.Values, provider.Configuration);
@@ -111,6 +113,13 @@ public static class InceptionServiceCollectionExtensions
         services.AddOptions<DangerZoneOptions, DangerZoneOptionsProvider>();
         services.AddSingleton<DangerZoneExecutor>();
 
+        return services;
+    }
+
+    internal static IServiceCollection AddRetryStrategyOptions(this IServiceCollection services)
+    {
+        services.AddSingleton<RetryStrategyFactory>();
+        services.AddOptions<RetryStrategyOptions, RetryStrategyOptionsProvider>();
         return services;
     }
 

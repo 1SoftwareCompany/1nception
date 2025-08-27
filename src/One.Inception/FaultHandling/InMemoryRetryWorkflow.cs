@@ -12,10 +12,10 @@ public class InMemoryRetryWorkflow<TContext> : Workflow<TContext> where TContext
 
     readonly Workflow<TContext> workflow;
 
-    public InMemoryRetryWorkflow(Workflow<TContext> workflow, ILogger logger)
+    public InMemoryRetryWorkflow(Workflow<TContext> workflow, RetryStrategyFactory fact, ILogger logger)
     {
         this.workflow = workflow;
-        ExponentialBackoff retryStrategy = new ExponentialBackoff(5, new TimeSpan(1_280_000), new TimeSpan(100_000_000), new TimeSpan(160_000)); // 128ms, 10000ms, 16ms
+        RetryStrategy retryStrategy = fact.GetRetryStrategy();
         retryPolicy = new RetryPolicy(new TransientErrorCatchAllStrategy(), retryStrategy, logger);
     }
 
