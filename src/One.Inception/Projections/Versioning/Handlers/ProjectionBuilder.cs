@@ -46,7 +46,7 @@ public sealed class ProjectionBuilder : Saga, ISystemSaga,
         var startRebuildAt = @event.Timebox.RequestStartAt;
         if (startRebuildAt.AddMinutes(5) > DateTime.UtcNow && @event.Timebox.HasExpired == false)
         {
-            RequestTimeout(new CreateNewProjectionVersion(@event, @event.Timebox.RequestStartAt));
+            return RequestTimeoutAsync(new CreateNewProjectionVersion(@event, @event.Timebox.RequestStartAt));
             //RequestTimeout(new ProjectionVersionRequestHeartbeat(@event, @event.Timebox.FinishRequestUntil));
         }
 
@@ -88,26 +88,25 @@ public sealed class ProjectionBuilder : Saga, ISystemSaga,
 
         if (result == JobExecutionStatus.Running)
         {
-            RequestTimeout(new CreateNewProjectionVersion(sagaTimeout.ProjectionVersionRequest, DateTime.UtcNow.AddSeconds(60)));
+            await RequestTimeoutAsync(new CreateNewProjectionVersion(sagaTimeout.ProjectionVersionRequest, DateTime.UtcNow.AddSeconds(60)));
         }
         else if (result == JobExecutionStatus.Failed)
         {
             var cancel = new CancelProjectionVersionRequest(sagaTimeout.ProjectionVersionRequest.Id, sagaTimeout.ProjectionVersionRequest.Version, "Failed");
-            commandPublisher.Publish(cancel);
+            await commandPublisher.PublishAsync(cancel);
         }
         else if (result == JobExecutionStatus.Completed)
         {
             var finalize = new FinalizeProjectionVersionRequest(sagaTimeout.ProjectionVersionRequest.Id, sagaTimeout.ProjectionVersionRequest.Version);
-            commandPublisher.Publish(finalize);
+            await commandPublisher.PublishAsync(finalize);
         }
     }
 
     public Task HandleAsync(ProjectionVersionRequestHeartbeat sagaTimeout)
     {
         var timedout = new TimeoutProjectionVersionRequest(sagaTimeout.ProjectionVersionRequest.Id, sagaTimeout.ProjectionVersionRequest.Version, sagaTimeout.ProjectionVersionRequest.Timebox);
-        commandPublisher.Publish(timedout);
 
-        return Task.CompletedTask;
+        return commandPublisher.PublishAsync(timedout);
     }
 
     private void OptionsForTenantReloaded(TenantsOptions newOptions)
@@ -140,7 +139,7 @@ public sealed class CreateNewProjectionVersion : ISystemScheduledMessage
     public ProjectionVersionRequested ProjectionVersionRequest { get; private set; }
 
     [DataMember(Order = 2)]
-    public DateTime PublishAt { get; set; }
+    public DateTimeOffset PublishAt { get; set; }
 
     [DataMember(Order = 3)]
     public DateTimeOffset Timestamp { get; private set; }
@@ -166,7 +165,7 @@ public sealed class ProjectionVersionRequestHeartbeat : ISystemScheduledMessage
     public ProjectionVersionRequested ProjectionVersionRequest { get; private set; }
 
     [DataMember(Order = 2)]
-    public DateTime PublishAt { get; set; }
+    public DateTimeOffset PublishAt { get; set; }
 
     [DataMember(Order = 2)]
     public DateTimeOffset Timestamp { get; private set; }

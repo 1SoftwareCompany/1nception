@@ -42,7 +42,7 @@ public class ReplayPublicEvents_Job : InceptionJob<ReplayPublicEvents_JobData>
         ulong counter = Data.EventTypePaging is null ? 0 : Data.EventTypePaging.ProcessedCount;
         PlayerOperator @operator = new PlayerOperator()
         {
-            OnLoadAsync = eventRaw =>
+            OnLoadAsync = async eventRaw =>
             {
                 string tenant = contextAccessor.Context.Tenant;
                 //TODO: Document which headers are essential or make another ctor for InceptionMessage with byte[]
@@ -56,10 +56,9 @@ public class ReplayPublicEvents_Job : InceptionJob<ReplayPublicEvents_JobData>
                     { "contract_name", Data.SourceEventTypeId }
                 };
 
-                publicEventPublisher.Publish(eventRaw.Data, Data.SourceEventTypeId.GetTypeByContract(), tenant, headers);
+                await publicEventPublisher.PublishAsync(eventRaw.Data, Data.SourceEventTypeId.GetTypeByContract(), tenant, headers).ConfigureAwait(false);
 
                 counter++;
-                return Task.CompletedTask;
             },
             NotifyProgressAsync = async options =>
             {

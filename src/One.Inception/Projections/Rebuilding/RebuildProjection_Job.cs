@@ -85,7 +85,7 @@ public sealed class RebuildProjection_Job : InceptionJob<RebuildProjection_JobDa
             return JobExecutionStatus.Running;
 
         var startSignal = progressTracker.GetProgressStartedSignal();
-        signalPublisher.Publish(startSignal);
+        await signalPublisher.PublishAsync(startSignal).ConfigureAwait(false);
 
         List<string> projectionHandledEventTypes = projectionVersionHelper.GetInvolvedEventTypes(projectionType).Select(x => x.GetContractId()).ToList();
         var projectionInstance = contextAccessor.Context.ServiceProvider.GetRequiredService(projectionType) as IAmEventSourcedProjectionFast;
@@ -178,7 +178,7 @@ public sealed class RebuildProjection_Job : InceptionJob<RebuildProjection_JobDa
         Data = await cluster.PingAsync(Data).ConfigureAwait(false);
 
         var finishSignal = progressTracker.GetProgressFinishedSignal();
-        signalPublisher.Publish(finishSignal);
+        await signalPublisher.PublishAsync(finishSignal).ConfigureAwait(false);
 
         var totalCount = progressTracker.GetTotalProcessedCount();
         var avgSpeed = progressTracker.GetProcessedPerSecond();
@@ -203,6 +203,7 @@ public sealed class RebuildProjection_Job : InceptionJob<RebuildProjection_JobDa
         Data = await cluster.PingAsync(Data).ConfigureAwait(false);
 
         var finishSignal = progressTracker.GetProgressFinishedSignal();
-        signalPublisher.Publish(finishSignal);
+
+        await signalPublisher.PublishAsync(finishSignal).ConfigureAwait(false);
     }
 }

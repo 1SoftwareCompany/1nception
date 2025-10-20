@@ -201,7 +201,7 @@ public class RetryPolicy
 
             if (retryCount > 1 || RetryStrategy.FastFirstRetry == false)
             {
-                await Task.Delay(delay);
+                await Task.Delay(delay).ConfigureAwait(false);
             }
         }
     }

@@ -88,7 +88,7 @@ public sealed class InceptionHost : IInceptionHost
         {
             InceptionLogger.Configure(serviceProvider.GetService<ILoggerFactory>());
 
-            booter.BootstrapInception();
+            await booter.BootstrapInceptionAsync().ConfigureAwait(false);
 
             if (hostOptions.SystemServicesEnabled)
             {

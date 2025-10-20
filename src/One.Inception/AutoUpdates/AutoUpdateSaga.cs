@@ -21,13 +21,13 @@ public class AutoUpdateSaga : Saga, ISystemSaga, // TODO: in future we can have 
     public async Task HandleAsync(AutoUpdateTriggered @event)
     {
         IAutoUpdate updater = strategy.GetInstanceFor(@event.Name);
-        bool finished = await updater.ApplyAsync();
+        bool finished = await updater.ApplyAsync().ConfigureAwait(false);
         if (finished)
         {
             var id = new AutoUpdaterId(@event.BoundedContext, @event.Id.Tenant);
 
             var finish = new FinishAutoUpdate(id, @event.Name, DateTimeOffset.UtcNow);
-            commandPublisher.Publish(finish);
+            await commandPublisher.PublishAsync(finish).ConfigureAwait(false);
         }
     }
 }

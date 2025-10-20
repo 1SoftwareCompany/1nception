@@ -83,7 +83,7 @@ public sealed class RebuildProjectionSequentially_Job : InceptionJob<RebuildProj
             return JobExecutionStatus.Running;
 
         var startSignal = progressTracker.GetProgressStartedSignal();
-        signalPublisher.Publish(startSignal);
+        await signalPublisher.PublishAsync(startSignal).ConfigureAwait(false);
 
         List<string> projectionEventsContractIds = projectionVersionHelper.GetInvolvedEventTypes(projectionType).Select(x => x.GetContractId()).ToList();
 
@@ -196,7 +196,7 @@ public sealed class RebuildProjectionSequentially_Job : InceptionJob<RebuildProj
         Data = await cluster.PingAsync(Data).ConfigureAwait(false);
 
         var finishSignal = progressTracker.GetProgressFinishedSignal();
-        signalPublisher.Publish(finishSignal);
+        await signalPublisher.PublishAsync(finishSignal).ConfigureAwait(false);
 
         var totalCount = progressTracker.GetTotalProcessedCount();
         var avgSpeed = progressTracker.GetProcessedPerSecond();
@@ -220,8 +220,9 @@ public sealed class RebuildProjectionSequentially_Job : InceptionJob<RebuildProj
         Data.Timestamp = DateTimeOffset.UtcNow;
         Data = await cluster.PingAsync(Data).ConfigureAwait(false);
 
-        var finishSignal = progressTracker.GetProgressFinishedSignal();
-        signalPublisher.Publish(finishSignal);
+        RebuildProjectionFinished finishSignal = progressTracker.GetProgressFinishedSignal();
+
+        await signalPublisher.PublishAsync(finishSignal).ConfigureAwait(false);
     }
 
     private bool IsInterested(string eventTypeContract, byte[] data)

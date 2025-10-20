@@ -1,4 +1,5 @@
 ﻿using One.Inception.Projections;
+using System.Threading.Tasks;
 
 namespace One.Inception;
 
@@ -12,8 +13,8 @@ internal sealed class ProjectionsStartup : IInceptionStartup /// TODO: make this
         this.projectionsBootstrapper = projectionsBootstrapper;
     }
 
-    public void Bootstrap()
+    public Task BootstrapAsync()
     {
-        projectionsBootstrapper.BootstrapAsync().GetAwaiter().GetResult();
+        return projectionsBootstrapper.BootstrapAsync();
     }
 }

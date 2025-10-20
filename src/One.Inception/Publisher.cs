@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace One.Inception;
 
@@ -16,10 +17,10 @@ public abstract class Publisher<TMessage> : PublisherBase<TMessage> where TMessa
         retryPolicy = new RetryPolicy(RetryableOperation.RetryPolicyFactory.CreateLinearRetryPolicy(5, TimeSpan.FromMilliseconds(300)));
     }
 
-    public override bool Publish(TMessage message, Dictionary<string, string> messageHeaders)
+    public override Task<bool> PublishAsync(TMessage message, Dictionary<string, string> messageHeaders)
     {
-        bool isPublished = RetryableOperation.TryExecute(() => base.Publish(message, messageHeaders), retryPolicy);
+        Func<Task<bool>> publishFunc = () => base.PublishAsync(message, messageHeaders);
 
-        return isPublished;
+        return RetryableOperation.TryExecuteAsync(publishFunc, retryPolicy);
     }
 }

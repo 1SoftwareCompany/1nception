@@ -1,4 +1,6 @@
-﻿namespace One.Inception;
+﻿using System.Threading.Tasks;
+
+namespace One.Inception;
 
 /// <summary>
 /// This type of startups are singleton and are executed ONLY once, so use accordingly
@@ -6,7 +8,7 @@
 public interface IInceptionStartup
 {
     // TODO: Make this async
-    void Bootstrap();
+    Task BootstrapAsync();
 }
 
 /// <summary>
@@ -14,5 +16,5 @@ public interface IInceptionStartup
 /// </summary>
 public interface ITenantStartup //TODO: also make this async :) kali
 {
-    void Bootstrap();
+    Task BootstrapAsync();
 }
