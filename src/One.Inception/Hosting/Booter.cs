@@ -34,11 +34,8 @@ public sealed class Booter
         foreach (var startupType in startups)
         {
             IInceptionStartup startup = (IInceptionStartup)serviceProvider.GetRequiredService(startupType);
-            tasks.Add(startup.BootstrapAsync());
+            await startup.BootstrapAsync().ConfigureAwait(false);
         }
-
-        await Task.WhenAll(tasks).ConfigureAwait(false);
-        tasks.Clear();
 
         IEnumerable<Type> tenantStartups = scanner.ScanForTenantStartups();
         foreach (var tenantStartupType in tenantStartups)
