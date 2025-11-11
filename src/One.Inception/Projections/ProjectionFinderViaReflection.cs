@@ -19,7 +19,21 @@ internal class ProjectionFinderViaReflection : IProjectionVersionFinder
     {
         foreach (Type projectionType in allProjections.Items)
         {
-            if (typeof(IProjectionDefinition).IsAssignableFrom(projectionType) || typeof(IAmEventSourcedProjection).IsAssignableFrom(projectionType))
+            if (projectionType.IsPersistedProjection())
+            {
+                string name = projectionType.GetContractId();
+                string hash = hasher.CalculateHash(projectionType);
+
+                yield return new ProjectionVersion(name, ProjectionStatus.NotPresent, 1, hash);
+            }
+        }
+    }
+
+    public IEnumerable<ProjectionVersion> GetProjectionVersionsToInitialize()
+    {
+        foreach (Type projectionType in allProjections.Items)
+        {
+            if (projectionType.IsPersistedProjection() == false)
             {
                 string name = projectionType.GetContractId();
                 string hash = hasher.CalculateHash(projectionType);

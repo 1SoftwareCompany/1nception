@@ -50,6 +50,7 @@ public class JobDiscovery : DiscoveryBase<IInceptionJob<object>>
             {
                 yield return new DiscoveredModel(typeof(RebuildProjection_JobFactory), typeof(RebuildProjection_JobFactory), ServiceLifetime.Transient);
                 yield return new DiscoveredModel(typeof(RebuildProjectionSequentially_JobFactory), typeof(RebuildProjectionSequentially_JobFactory), ServiceLifetime.Transient);
+                yield return new DiscoveredModel(typeof(ReplayNotPersistedProjection_Job_JobFactory), typeof(ReplayNotPersistedProjection_Job_JobFactory), ServiceLifetime.Transient);
             }
         }
     }

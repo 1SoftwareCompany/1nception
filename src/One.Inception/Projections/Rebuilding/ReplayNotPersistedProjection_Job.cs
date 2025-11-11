@@ -4,29 +4,27 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using One.Inception.Cluster.Job;
-using One.Inception.EventStore;
-using One.Inception.EventStore.Index;
-using One.Inception.MessageProcessing;
-using One.Inception.Projections.Cassandra.EventSourcing;
-using One.Inception.Workflow;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using One.Inception.Cluster.Job;
+using One.Inception.EventStore;
+using One.Inception.MessageProcessing;
+using One.Inception.Projections.Cassandra.EventSourcing;
+using One.Inception.Projections.Versioning;
 using One.Inception.Serializer;
+using One.Inception.Workflow;
 
 namespace One.Inception.Projections.Rebuilding;
 
-public sealed class RebuildProjectionSequentially_Job : InceptionJob<RebuildProjectionSequentially_JobData>
+public sealed class ReplayNotPersistedProjection_Job : InceptionJob<ReplayNotPersistedProjection_JobData>
 {
     private readonly IPublisher<ISystemSignal> signalPublisher;
     private readonly ISerializer serializer;
     private readonly IInceptionContextAccessor contextAccessor;
-    private readonly IEventLookUp eventLookup;
-    private readonly IInitializableProjectionStore projectionStoreInitializer;
     private readonly IEventStorePlayer player;
-    private readonly IProjectionWriter projectionWriter;
     private readonly ProgressTracker progressTracker;
     private readonly ProjectionVersionHelper projectionVersionHelper;
+    private readonly IEventLookUp eventLookUp;
     private static readonly Action<ILogger, string, ulong, double, Exception> LogProjectionProgress =
         LoggerMessage.Define<string, ulong, double>(LogLevel.Information, InceptionLogEvent.JobOk, "Rebuild projection job progress for version {inception_projection_version}: {counter}. Average speed: {speed} events/s.");
 
@@ -36,7 +34,7 @@ public sealed class RebuildProjectionSequentially_Job : InceptionJob<RebuildProj
     private static readonly Action<ILogger, string, double, ulong, double, Exception> LogRebuildProjectionCompleted =
         LoggerMessage.Define<string, double, ulong, double>(LogLevel.Information, InceptionLogEvent.JobOk, "The rebuild job for version {inception_projection_version} has completed in {ElapsedMilliseconds:0.0000}ms. Total events: {counter}. Average speed: {speed} events/s.");
 
-    public RebuildProjectionSequentially_Job(
+    public ReplayNotPersistedProjection_Job(
         IInitializableProjectionStore projectionStoreInitializer,
         IEventStorePlayer player,
         IProjectionWriter projectionWriter,
@@ -45,22 +43,20 @@ public sealed class RebuildProjectionSequentially_Job : InceptionJob<RebuildProj
         IPublisher<ISystemSignal> signalPublisher,
         ISerializer serializer,
         IInceptionContextAccessor contextAccessor,
-        IEventLookUp eventLookup,
-        ILogger<RebuildProjectionSequentially_Job> logger)
+        ILogger<ReplayNotPersistedProjection_Job> logger,
+        IEventLookUp eventLookUp)
         : base(logger)
     {
         this.signalPublisher = signalPublisher;
         this.serializer = serializer;
         this.contextAccessor = contextAccessor;
-        this.eventLookup = eventLookup;
-        this.projectionStoreInitializer = projectionStoreInitializer;
         this.progressTracker = progressTracker;
         this.projectionVersionHelper = projectionVersionHelper;
         this.player = player;
-        this.projectionWriter = projectionWriter;
+        this.eventLookUp = eventLookUp;
     }
 
-    public override string Name { get; set; } = typeof(ProjectionIndex).GetContractId();
+    public override string Name { get; set; } = nameof(ReplayNotPersistedProjection_Job);
 
     protected override async Task<JobExecutionStatus> RunJobAsync(IClusterOperations cluster, CancellationToken cancellationToken = default)
     {
@@ -70,42 +66,111 @@ public sealed class RebuildProjectionSequentially_Job : InceptionJob<RebuildProj
         ProjectionVersion version = Data.Version;
         Type projectionType = version.ProjectionName.GetTypeByContract();
 
-        await progressTracker.InitializeAsync(version).ConfigureAwait(false);
-
-        if (await projectionVersionHelper.ShouldBeRetriedAsync(version).ConfigureAwait(false))
-            return JobExecutionStatus.Running;
-
-        if (await projectionVersionHelper.ShouldBeCanceledAsync(version, Data.DueDate).ConfigureAwait(false))
-            return JobExecutionStatus.Failed;
-
-        bool isStoreInitialized = await projectionStoreInitializer.InitializeAsync(version).ConfigureAwait(false);
-        if (isStoreInitialized == false)
-            return JobExecutionStatus.Running;
-
         var startSignal = progressTracker.GetProgressStartedSignal();
         await signalPublisher.PublishAsync(startSignal).ConfigureAwait(false);
 
-        List<string> projectionEventsContractIds = projectionVersionHelper.GetInvolvedEventTypes(projectionType).Select(x => x.GetContractId()).ToList();
+        var pingSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        var projectionInstance = contextAccessor.Context.ServiceProvider.GetRequiredService(projectionType);
-
-        var pingSource = new CancellationTokenSource();
-        TimeSpan elapsed;
-
-        CancellationToken ct = pingSource.Token;
-
-        bool shouldReplayAndPersistProjection = typeof(IProjection).IsAssignableFrom(projectionType) && projectionType.IsPersistedProjection() && projectionType.IsProjectionReplayOrdered();
-        if (shouldReplayAndPersistProjection)
+        bool isPersistedProjection = projectionType.IsPersistedProjection();
+        if (isPersistedProjection)
         {
-            IProjection projection = (IProjection)projectionInstance;
+            logger.LogWarning("The projection does is not marked with attribute {attribute} with setting {setting}. Canceling...", nameof(ProjectionAttribute), nameof(ProjectionReplaySetting.Ordered));
+            if (Data.IsCanceled == false)
+                await CancelJobAsync(cluster).ConfigureAwait(false);
 
+            pingSource.Cancel();
+            LogRebuildProjectionCanceled(logger, version.ToString(), null);
+            return JobExecutionStatus.Canceled;
+        }
+
+        var projectionInstance = contextAccessor.Context.ServiceProvider.GetRequiredService(projectionType) as IProjection;
+
+        bool isOrderedReplay = projectionType.IsProjectionReplayOrdered();
+
+        progressTracker.MarkProcessStart();
+        TimeSpan elapsed = default;
+
+        List<string> projectionHandledEventTypes = projectionVersionHelper.GetInvolvedEventTypes(projectionType).Select(x => x.GetContractId()).ToList();
+        if (isOrderedReplay == false)
+        {
+            foreach (string eventTypeId in projectionHandledEventTypes)
+            {
+                if (version.ProjectionName.Equals(ProjectionVersionsHandler.ContractId) == false)
+                {
+                    if (Data.IsCanceled)
+                    {
+                        LogRebuildProjectionCanceled(logger, version.ToString(), null);
+                        return JobExecutionStatus.Canceled;
+                    }
+
+                    if (cancellationToken.IsCancellationRequested || await projectionVersionHelper.ShouldBeCanceledAsync(version, Data.DueDate).ConfigureAwait(false))
+                    {
+                        await CancelJobAsync(cluster).ConfigureAwait(false);
+
+                        LogRebuildProjectionCanceled(logger, version.ToString(), null);
+                        return JobExecutionStatus.Canceled;
+                    }
+                }
+
+                PlayerOperator playerOperator = new PlayerOperator()
+                {
+                    OnLoadAsync = async eventRaw =>
+                    {
+                        IEvent @event = serializer.DeserializeFromBytes<IEvent>(eventRaw.Data);
+                        @event = @event.Unwrap();
+                        if (@event is null)
+                        {
+                            logger.LogError("Failed to deserialize event from data {data}.", eventRaw.Data);
+                            return;
+                        }
+
+                        await projectionInstance.ReplayEventAsync(@event).ConfigureAwait(false);
+
+                        progressTracker.TrackAndNotify(@event.GetType().GetContractId(), pingSource.Token);
+                    },
+                    NotifyProgressAsync = async options =>
+                    {
+                        var totalCount = progressTracker.GetTotalProcessedCount();
+                        Data.ProcessedCount = totalCount;
+                        Data.PaginationToken = options.PaginationToken;
+                        Data.MaxDegreeOfParallelism = options.MaxDegreeOfParallelism;
+                        Data = await cluster.PingAsync(Data).ConfigureAwait(false);
+
+                        var avgSpeed = progressTracker.GetProcessedPerSecond();
+                        LogProjectionProgress(logger, version.ToString(), totalCount, avgSpeed, null);
+                    }
+                };
+
+                if (Data.IsCanceled || cancellationToken.IsCancellationRequested || await projectionVersionHelper.ShouldBeCanceledAsync(version, Data.DueDate).ConfigureAwait(false))
+                {
+                    if (Data.IsCanceled == false)
+                        await CancelJobAsync(cluster).ConfigureAwait(false);
+
+                    LogRebuildProjectionCanceled(logger, version.ToString(), null);
+                    return JobExecutionStatus.Canceled;
+                }
+
+                PlayerOptions opt = new PlayerOptions()
+                {
+                    EventTypeId = eventTypeId,
+                    PaginationToken = Data.PaginationToken,
+                    After = Data.After,
+                    Before = Data.Before ?? DateTimeOffset.UtcNow,
+                    MaxDegreeOfParallelism = Data.MaxDegreeOfParallelism
+                };
+
+                await player.EnumerateEventStore(playerOperator, opt, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        else
+        {
             PlayerOperator playerOperator = new PlayerOperator()
             {
                 OnAggregateStreamLoadedAsync = async stream =>
                 {
                     // 1. It is important to check all EventHandlers if they are interested in specific events and do this FIRST.
                     List<AggregateEventRaw> rawEvents = [];
-                    foreach (string eventTypeContract in projectionEventsContractIds)
+                    foreach (string eventTypeContract in projectionHandledEventTypes)
                     {
                         IEnumerable<AggregateEventRaw> interested = stream.Commits
                             .SelectMany(x => x.Events)
@@ -126,25 +191,18 @@ public sealed class RebuildProjectionSequentially_Job : InceptionJob<RebuildProj
                             return;
                         }
 
-                        Task projectionStoreTask = projectionWriter.SaveAsync(projectionType, @event, version);
-                        Task replayTask = projection.ReplayEventAsync(@event);
-
                         try
                         {
-                            await Task.WhenAll([projectionStoreTask, replayTask]).ConfigureAwait(false);
+                            await projectionInstance.ReplayEventAsync(@event);
                         }
                         catch (Exception ex)
                         {
-                            if (projectionStoreTask.IsFaulted)
-                                logger.LogError(ex, "Failed to persist event!");
-
-                            if (replayTask.IsFaulted)
-                                logger.LogError(ex, "Failed to replay event!");
+                            logger.LogError(ex, "Failed to replay event!");
 
                             continue;
                         }
 
-                        progressTracker.TrackAndNotify(@event.GetType().GetContractId(), ct);
+                        progressTracker.TrackAndNotify(@event.GetType().GetContractId(), cancellationToken);
                     }
                 },
                 NotifyProgressAsync = async options =>
@@ -177,21 +235,10 @@ public sealed class RebuildProjectionSequentially_Job : InceptionJob<RebuildProj
                 MaxDegreeOfParallelism = Data.MaxDegreeOfParallelism
             };
 
-            progressTracker.MarkProcessStart();
             await player.EnumerateEventStore(playerOperator, opt, cancellationToken).ConfigureAwait(false);
 
-            await projection.OnReplayCompletedAsync().ConfigureAwait(false);
+            await projectionInstance.OnReplayCompletedAsync().ConfigureAwait(false);
             elapsed = progressTracker.GetElapsed();
-        }
-        else
-        {
-            logger.LogWarning("The projection does is not marked with attribute {attribute} with setting {setting}. Canceling...", nameof(ProjectionAttribute), nameof(ProjectionReplaySetting.Ordered));
-            if (Data.IsCanceled == false)
-                await CancelJobAsync(cluster).ConfigureAwait(false);
-
-            pingSource.Cancel();
-            LogRebuildProjectionCanceled(logger, version.ToString(), null);
-            return JobExecutionStatus.Canceled;
         }
 
         pingSource.Cancel();
@@ -210,21 +257,13 @@ public sealed class RebuildProjectionSequentially_Job : InceptionJob<RebuildProj
         return JobExecutionStatus.Completed;
     }
 
-    protected override RebuildProjectionSequentially_JobData Override(RebuildProjectionSequentially_JobData fromCluster, RebuildProjectionSequentially_JobData fromLocal)
-    {
-        if (fromCluster.IsCompleted && fromCluster.Timestamp < fromLocal.Timestamp || fromCluster.Version < fromLocal.Version)
-            return fromLocal;
-        else
-            return fromCluster;
-    }
-
     private async Task CancelJobAsync(IClusterOperations cluster)
     {
         Data.IsCanceled = true;
         Data.Timestamp = DateTimeOffset.UtcNow;
         Data = await cluster.PingAsync(Data).ConfigureAwait(false);
 
-        RebuildProjectionFinished finishSignal = progressTracker.GetProgressFinishedSignal();
+        var finishSignal = progressTracker.GetProgressFinishedSignal();
 
         await signalPublisher.PublishAsync(finishSignal).ConfigureAwait(false);
     }
@@ -233,6 +272,29 @@ public sealed class RebuildProjectionSequentially_Job : InceptionJob<RebuildProj
     {
         byte[] bytes = Encoding.UTF8.GetBytes(eventTypeContract);
         var eventSpan = bytes.AsSpan();
-        return eventLookup.HasEventId(data.AsSpan(), eventSpan);
+        return eventLookUp.HasEventId(data.AsSpan(), eventSpan);
     }
+}
+
+public class ReplayNotPersistedProjection_JobData : IJobData
+{
+    public ReplayNotPersistedProjection_JobData()
+    {
+        IsCompleted = false;
+        IsCanceled = false;
+        Timestamp = DateTimeOffset.UtcNow;
+        DueDate = DateTimeOffset.MaxValue;
+    }
+
+    public bool IsCompleted { get; set; }
+    public bool IsCanceled { get; set; }
+    public string PaginationToken { get; set; }
+    public ulong ProcessedCount { get; set; }
+    public ulong TotalCount { get; set; }
+    public ProjectionVersion Version { get; set; }
+    public DateTimeOffset Timestamp { get; set; }
+    public DateTimeOffset DueDate { get; set; }
+    public DateTimeOffset? After { get; set; }
+    public DateTimeOffset? Before { get; set; }
+    public int MaxDegreeOfParallelism { get; set; }
 }

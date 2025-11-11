@@ -35,7 +35,7 @@ public sealed class ProjectionStream : IEnumerable<IEvent>
 
         IEnumerable<IEvent> eventsOrderedByTimestamp = events.OrderBy(@event => @event.Timestamp);
 
-        projection.InitializeState(projectionId, null);
+        await projection.InitializeStateAsync(projectionId, null);
         foreach (IEvent @event in eventsOrderedByTimestamp)
         {
             await projection.ApplyAsync(@event).ConfigureAwait(false);    // Because of the order we need to await each event before replaying the next one.

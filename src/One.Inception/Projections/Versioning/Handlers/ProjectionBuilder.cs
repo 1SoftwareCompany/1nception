@@ -28,14 +28,16 @@ public sealed class ProjectionBuilder : Saga, ISystemSaga,
     private readonly IInceptionJobRunner jobRunner;
     private readonly RebuildProjection_JobFactory fastJobFactory;
     private readonly RebuildProjectionSequentially_JobFactory sequentialJobFactory;
+    private readonly ReplayNotPersistedProjection_Job_JobFactory replayNotPersistedProjection_Job;
 
-    public ProjectionBuilder(IPublisher<ICommand> commandPublisher, IPublisher<IScheduledMessage> timeoutRequestPublisher, IOptionsMonitor<TenantsOptions> monitor, IInceptionJobRunner jobRunner, RebuildProjection_JobFactory fastJobFactory, RebuildProjectionSequentially_JobFactory sequentialJobFactory, ILogger<ProjectionBuilder> logger)
+    public ProjectionBuilder(IPublisher<ICommand> commandPublisher, IPublisher<IScheduledMessage> timeoutRequestPublisher, IOptionsMonitor<TenantsOptions> monitor, IInceptionJobRunner jobRunner, RebuildProjection_JobFactory fastJobFactory, RebuildProjectionSequentially_JobFactory sequentialJobFactory, ILogger<ProjectionBuilder> logger, ReplayNotPersistedProjection_Job_JobFactory replayNotPersistedProjection_Job)
         : base(commandPublisher, timeoutRequestPublisher)
     {
         this.tenants = monitor.CurrentValue;
         this.jobRunner = jobRunner;
         this.fastJobFactory = fastJobFactory;
         this.sequentialJobFactory = sequentialJobFactory;
+        this.replayNotPersistedProjection_Job = replayNotPersistedProjection_Job;
         this.logger = logger;
 
         monitor.OnChange(OptionsForTenantReloaded);
@@ -64,10 +66,16 @@ public sealed class ProjectionBuilder : Saga, ISystemSaga,
     {
         IProjection_JobFactory factory;
         var projectionType = version.ProjectionName.GetTypeByContract();
-        if (projectionType.IsAssignableTo(typeof(IAmEventSourcedProjectionFast)) || projectionType.IsAssignableTo(typeof(IProjectionDefinition)))
+
+        bool isUnorderedProjection = projectionType.IsProjectionReplayOrdered() == false;
+        bool isPeristsedProjection = projectionType.IsPersistedProjection();
+
+        if (isPeristsedProjection && isUnorderedProjection)
             factory = fastJobFactory;
-        else
+        else if (isPeristsedProjection && isUnorderedProjection == false)
             factory = sequentialJobFactory;
+        else
+            factory = replayNotPersistedProjection_Job;
 
         IInceptionJob<object> job = factory.CreateJob(version, replayEventsOptions, requestTimebox);
 

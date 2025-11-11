@@ -79,6 +79,14 @@ internal class ProjectionBootstrapper
                     var command = new RegisterProjection(id, projectionVersion.Hash);
                     await publisher.PublishAsync(command).ConfigureAwait(false);
                 }
+
+                foreach (ProjectionVersion version in finder.GetProjectionVersionsToJustInitialize())
+                {
+                    var id = new ProjectionVersionManagerId(version.ProjectionName, tenant);
+                    var command = new InitilizeProjection(id, version.Hash);
+
+                    await publisher.PublishAsync(command).ConfigureAwait(false);
+                }
             }
         }
     }

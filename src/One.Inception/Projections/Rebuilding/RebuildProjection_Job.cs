@@ -88,7 +88,8 @@ public sealed class RebuildProjection_Job : InceptionJob<RebuildProjection_JobDa
         await signalPublisher.PublishAsync(startSignal).ConfigureAwait(false);
 
         List<string> projectionHandledEventTypes = projectionVersionHelper.GetInvolvedEventTypes(projectionType).Select(x => x.GetContractId()).ToList();
-        var projectionInstance = contextAccessor.Context.ServiceProvider.GetRequiredService(projectionType) as IAmEventSourcedProjectionFast;
+
+        IProjection projectionInstance = contextAccessor.Context.ServiceProvider.GetRequiredService(projectionType) as IProjection;
 
         var pingSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         progressTracker.MarkProcessStart();

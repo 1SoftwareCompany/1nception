@@ -11,7 +11,8 @@ public class ProjectionVersionManagerAppService : ApplicationService<ProjectionV
     ICommandHandler<CancelProjectionVersionRequest>,
     ICommandHandler<TimeoutProjectionVersionRequest>,
     ICommandHandler<FixProjectionVersion>,
-    ICommandHandler<PauseProjectionVersion>
+    ICommandHandler<PauseProjectionVersion>,
+    ICommandHandler<InitilizeProjection>
 {
     private readonly IProjectionVersioningPolicy projectionVersioningPolicy;
     private readonly IProjectionReader projectionReader;
@@ -71,6 +72,17 @@ public class ProjectionVersionManagerAppService : ApplicationService<ProjectionV
     public Task HandleAsync(PauseProjectionVersion command)
     {
         return UpdateAsync(command.Id, ar => ar.PauseVersionRequest(command.Version));
+    }
+
+    public async Task HandleAsync(InitilizeProjection command)
+    {
+        ProjectionVersionManager ar = null;
+        ReadResult<ProjectionVersionManager> result = await repository.LoadAsync<ProjectionVersionManager>(command.Id).ConfigureAwait(false);
+        if (result.NotFound)
+        {
+            ar = new ProjectionVersionManager(command.Id, command.Hash);
+            await repository.SaveAsync(ar).ConfigureAwait(false);
+        }
     }
 
     private async Task<bool> ShouldRebuildMissingSystemProjectionsAsync(ProjectionVersionManagerId projectionId, IProjectionReader projectionReader)

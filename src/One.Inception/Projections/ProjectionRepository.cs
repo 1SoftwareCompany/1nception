@@ -43,11 +43,13 @@ public partial class ProjectionRepository : IProjectionWriter, IProjectionReader
         string projectionName = projectionType.GetContractId();
         // TODO: inspect the type if it implements IProjectionDefinition
         IHandlerInstance handlerInstance = handlerFactory.Create(projectionType);
-        IProjectionDefinition projection = handlerInstance.Current as IProjectionDefinition;
+        IProjectionDefinition projectionDefinition = handlerInstance.Current as IProjectionDefinition;
 
-        if (projection is not null)
+        if (projectionDefinition is not null)
         {
-            var projectionIds = projection.GetProjectionIds(@event);
+            var extractedProjectionIds = projectionDefinition.GetProjectionIds(@event);
+
+            var projectionIds = projectionDefinition.GetProjectionIds(@event);
 
             List<Task> tasks = new List<Task>();
             foreach (IBlobId projectionId in projectionIds)
@@ -96,6 +98,42 @@ public partial class ProjectionRepository : IProjectionWriter, IProjectionReader
                 throw;
             }
         }
+        else
+        {
+            IProjection projection = handlerInstance.Current as IProjection;
+            if (projection is not null)
+            {
+                try
+                {
+                    bool shouldBePersisted = projectionType.IsPersistedProjection();
+                    if (shouldBePersisted == false)
+                        return;
+
+                    ReadResult<ProjectionVersions> result = await GetProjectionVersionsAsync(projectionName).ConfigureAwait(false);
+                    if (result.IsSuccess)
+                    {
+                        foreach (ProjectionVersion version in result.Data)
+                        {
+                            using (log.BeginScope(s => s.AddScope(Log.ProjectionVersion, version)))
+                            {
+                                if (ShouldSaveEventForVersion(version))
+                                {
+                                    var projectionId = new Urn($"urn:Inception:{projectionName}");
+
+                                    var commit = new ProjectionCommit(projectionId, version, @event);
+                                    await projectionStore.SaveAsync(commit).ConfigureAwait(false);
+                                }
+                            }
+                        }
+                    }
+                    if (result.HasError)
+                    {
+                        log.LogError("Failed to update projection because the projection version failed to load. Please replay the projection to restore the state. Self-heal hint!" + Environment.NewLine + result.Error + Environment.NewLine + $"\tProjectionName:{projectionName}" + Environment.NewLine + $"\tEvent:{@event}");
+                    }
+                }
+                catch (Exception ex) when (ExceptionFilter.True(() => LogProjectionWriteError(log, ex))) { }
+            }
+        }
     }
 
     /// <Remarks>
@@ -115,7 +153,7 @@ public partial class ProjectionRepository : IProjectionWriter, IProjectionReader
             throw new ArgumentException($"Invalid version. The version `{version}` does not match projection `{projectionName}`", nameof(version));
 
         bool isProjectionDefinitionType = typeof(IProjectionDefinition).IsAssignableFrom(projectionType);
-        bool isEventSourcedType = typeof(IAmEventSourcedProjection).IsAssignableFrom(projectionType);
+        bool isEventSourcedProjection = typeof(IProjection).IsAssignableFrom(projectionType) && projectionType.IsPersistedProjection();
 
         if (isProjectionDefinitionType)
         {
@@ -150,7 +188,7 @@ public partial class ProjectionRepository : IProjectionWriter, IProjectionReader
                 throw;
             }
         }
-        else if (isEventSourcedType)
+        else if (isEventSourcedProjection)
         {
             try
             {
