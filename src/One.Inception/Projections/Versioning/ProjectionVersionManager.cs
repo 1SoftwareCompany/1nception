@@ -8,11 +8,10 @@ public class ProjectionVersionManager : AggregateRoot<ProjectionVersionManagerSt
 {
     ProjectionVersionManager() { }
 
-    public ProjectionVersionManager(ProjectionVersionManagerId id, string hash)
+    public ProjectionVersionManager(ProjectionVersionManagerId id, string hash, ReplayEventsOptions options)
     {
         string projectionName = id.Id;
         var initialVersion = new ProjectionVersion(projectionName, ProjectionStatus.New, 1, hash);
-        var options = new ReplayEventsOptions();
         var timebox = new VersionRequestTimebox(DateTime.UtcNow);
         RequestVersion(id, initialVersion, options, timebox);
     }

@@ -7,6 +7,7 @@ using One.Inception.Projections.Versioning;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using One.Inception.EventStore.Players;
 
 namespace One.Inception.Projections;
 
@@ -76,15 +77,18 @@ internal class ProjectionBootstrapper
                 foreach (ProjectionVersion projectionVersion in projectionFinderViaReflection.GetProjectionVersionsToBootstrap())
                 {
                     var id = new ProjectionVersionManagerId(projectionVersion.ProjectionName, tenant);
-                    var command = new RegisterProjection(id, projectionVersion.Hash);
+                    var replayOptions = GetReplayOptionsFor(projectionVersion.ProjectionName.GetTypeByContract());
+
+                    var command = new RegisterProjection(id, projectionVersion.Hash, replayOptions);
                     await publisher.PublishAsync(command).ConfigureAwait(false);
                 }
 
-                foreach (ProjectionVersion version in finder.GetProjectionVersionsToJustInitialize())
+                foreach (ProjectionVersion version in projectionFinderViaReflection.GetProjectionVersionsToInitialize())
                 {
                     var id = new ProjectionVersionManagerId(version.ProjectionName, tenant);
-                    var command = new InitilizeProjection(id, version.Hash);
+                    var replayOptions = GetReplayOptionsFor(version.ProjectionName.GetTypeByContract());
 
+                    var command = new InitilizeProjection(id, version.Hash, replayOptions);
                     await publisher.PublishAsync(command).ConfigureAwait(false);
                 }
             }
@@ -121,5 +125,17 @@ internal class ProjectionBootstrapper
 
         hostOptions = newOptions;
 
+    }
+
+    private ReplayEventsOptions GetReplayOptionsFor(Type projectionType)
+    {
+        DateTimeOffset? afterTimestamp = projectionType.GetProjectionAfterTimestamp();
+        if (afterTimestamp.HasValue == false)
+            return new ReplayEventsOptions();
+
+        return new ReplayEventsOptions()
+        {
+            After = afterTimestamp.Value
+        };
     }
 }

@@ -8,6 +8,7 @@ public static class ProjectionInfoCache
 {
     private static readonly ConcurrentDictionary<Type, bool> typeToPersistence = new ConcurrentDictionary<Type, bool>();
     private static readonly ConcurrentDictionary<Type, bool> typeToOrder = new ConcurrentDictionary<Type, bool>();
+    private static readonly ConcurrentDictionary<Type, DateTimeOffset?> typeToAfterTimestamp = new ConcurrentDictionary<Type, DateTimeOffset?>();
 
     public static bool IsPersistedProjection(this Type messageType)
     {
@@ -32,6 +33,16 @@ public static class ProjectionInfoCache
             shouldPersist = GetAndCacheOrderFromAttribute(messageType);
         }
         return shouldPersist;
+    }
+
+    public static DateTimeOffset? GetProjectionAfterTimestamp(this Type messageType)
+    {
+        DateTimeOffset? afterTimestamp = null;
+        if (typeToAfterTimestamp.TryGetValue(messageType, out afterTimestamp) == false)
+        {
+            afterTimestamp = GetAndCacheAfterTimestampFromAttribute(messageType);
+        }
+        return afterTimestamp;
     }
 
     /// <summary>
@@ -77,5 +88,21 @@ public static class ProjectionInfoCache
 
         typeToOrder.TryAdd(type, isOrdered);
         return isOrdered;
+    }
+
+    private static DateTimeOffset? GetAndCacheAfterTimestampFromAttribute(Type type)
+    {
+        ProjectionAttribute contract = type
+            .GetCustomAttributes(true).Where(attr => attr is ProjectionAttribute)
+            .SingleOrDefault() as ProjectionAttribute;
+
+        if (contract is null)
+        {
+            typeToAfterTimestamp.TryAdd(type, null);
+            return null;
+        }
+
+        typeToAfterTimestamp.TryAdd(type, contract.Timestamp);
+        return contract.Timestamp;
     }
 }

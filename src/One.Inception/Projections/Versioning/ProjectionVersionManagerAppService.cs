@@ -39,7 +39,7 @@ public class ProjectionVersionManagerAppService : ApplicationService<ProjectionV
         }
 
         if (result.NotFound)
-            ar = new ProjectionVersionManager(command.Id, command.Hash);
+            ar = new ProjectionVersionManager(command.Id, command.Hash, command.ReplayEventsOptions);
 
         await repository.SaveAsync(ar).ConfigureAwait(false);
     }
@@ -80,7 +80,7 @@ public class ProjectionVersionManagerAppService : ApplicationService<ProjectionV
         ReadResult<ProjectionVersionManager> result = await repository.LoadAsync<ProjectionVersionManager>(command.Id).ConfigureAwait(false);
         if (result.NotFound)
         {
-            ar = new ProjectionVersionManager(command.Id, command.Hash);
+            ar = new ProjectionVersionManager(command.Id, command.Hash, command.ReplayOptions);
             await repository.SaveAsync(ar).ConfigureAwait(false);
         }
     }

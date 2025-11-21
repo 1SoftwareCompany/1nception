@@ -9,18 +9,17 @@ public sealed class RegisterProjection : ISystemCommand
 {
     RegisterProjection()
     {
-        ReplayEventsOptions = new ReplayEventsOptions();
         Timestamp = DateTimeOffset.UtcNow;
     }
 
-    public RegisterProjection(ProjectionVersionManagerId id, string hash) : this()
+    public RegisterProjection(ProjectionVersionManagerId id, string hash, ReplayEventsOptions replayEventsOptions) : this()
     {
         if (id is null) throw new ArgumentNullException(nameof(id));
         // if (string.IsNullOrEmpty(hash)) throw new ArgumentNullException(nameof(hash));
 
         Id = id;
         Hash = hash;
-        ReplayEventsOptions = new ReplayEventsOptions();
+        ReplayEventsOptions = replayEventsOptions;
     }
 
     [DataMember(Order = 1)]
