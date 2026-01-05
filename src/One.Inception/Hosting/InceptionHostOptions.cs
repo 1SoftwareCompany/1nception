@@ -7,7 +7,7 @@ public class InceptionHostOptions
     public bool ApplicationServicesEnabled { get; set; } = true;
     public bool ProjectionsEnabled { get; set; } = true;
     public bool PortsEnabled { get; set; } = true;
-    public bool SagasEnabled { get; set; } = true;
+    public bool ProcessManagersEnabled { get; set; } = true;
     public bool GatewaysEnabled { get; set; } = true;
     public bool TriggersEnabled { get; set; } = true;
     public bool MigrationsEnabled { get; set; } = false;

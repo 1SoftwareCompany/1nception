@@ -35,7 +35,7 @@ public class When_inception_startups_are_executed
         typeof(TestAssemblyScanner.ConfigurationStartup),
         typeof(TestAssemblyScanner.AggregatesStartup),
         typeof(TestAssemblyScanner.PortsStartup),
-        typeof(TestAssemblyScanner.SagasStartup),
+        typeof(TestAssemblyScanner.ProcessManagersStartup),
         typeof(TestAssemblyScanner.SecondProjectionsStartup),
         typeof(TestAssemblyScanner.ProjectionsStartup),
         typeof(TestAssemblyScanner.GatewaysStartup),
@@ -48,7 +48,7 @@ public class TestAssemblyScanner : IAssemblyScanner
 {
     public IEnumerable<Type> Scan()
     {
-        yield return typeof(SagasStartup);
+        yield return typeof(ProcessManagersStartup);
         yield return typeof(GatewaysStartup);
         yield return typeof(SecondProjectionsStartup);
         yield return typeof(AggregatesStartup);
@@ -66,7 +66,7 @@ public class TestAssemblyScanner : IAssemblyScanner
     [InceptionStartup(Bootstraps.Configuration)] public class ConfigurationStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
     [InceptionStartup(Bootstraps.Aggregates)] public class AggregatesStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
     [InceptionStartup(Bootstraps.Ports)] public class PortsStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
-    [InceptionStartup(Bootstraps.Sagas)] public class SagasStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.ProcessManagers)] public class ProcessManagersStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
     [InceptionStartup(Bootstraps.Projections)] public class ProjectionsStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
     [InceptionStartup(Bootstraps.Projections)] public class SecondProjectionsStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
     [InceptionStartup(Bootstraps.Gateways)] public class GatewaysStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }

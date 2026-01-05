@@ -6,8 +6,8 @@ namespace One.Inception.EventStore.Index.Handlers;
 
 [DataContract(Name = ContractId)]
 public sealed class EventStoreIndexStatus : ProjectionDefinition<EventStoreIndexStatusState, EventStoreIndexManagerId>, ISystemProjection, ISystemEventStoreIndexHandler,
-    IEventHandler<EventStoreIndexRequested>,
-    IEventHandler<EventStoreIndexIsNowPresent>
+    IEventHandle<EventStoreIndexRequested>,
+    IEventHandle<EventStoreIndexIsNowPresent>
 {
     public const string ContractId = "1bcdb806-dbd0-45e7-b781-e3d2fd0589c1";
 

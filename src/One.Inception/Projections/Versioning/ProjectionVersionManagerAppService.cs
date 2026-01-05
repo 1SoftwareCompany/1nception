@@ -5,14 +5,14 @@ namespace One.Inception.Projections.Versioning;
 
 [DataContract(Name = "28345d27-0ccf-48dc-88dc-2d10bed829cf")]
 public class ProjectionVersionManagerAppService : ApplicationService<ProjectionVersionManager>, ISystemAppService,
-    ICommandHandler<RegisterProjection>,
-    ICommandHandler<NewProjectionVersion>,
-    ICommandHandler<FinalizeProjectionVersionRequest>,
-    ICommandHandler<CancelProjectionVersionRequest>,
-    ICommandHandler<TimeoutProjectionVersionRequest>,
-    ICommandHandler<FixProjectionVersion>,
-    ICommandHandler<PauseProjectionVersion>,
-    ICommandHandler<InitilizeProjection>
+    ICommandHandle<RegisterProjection>,
+    ICommandHandle<NewProjectionVersion>,
+    ICommandHandle<FinalizeProjectionVersionRequest>,
+    ICommandHandle<CancelProjectionVersionRequest>,
+    ICommandHandle<TimeoutProjectionVersionRequest>,
+    ICommandHandle<FixProjectionVersion>,
+    ICommandHandle<PauseProjectionVersion>,
+    ICommandHandle<InitilizeProjection>
 {
     private readonly IProjectionVersioningPolicy projectionVersioningPolicy;
     private readonly IProjectionReader projectionReader;

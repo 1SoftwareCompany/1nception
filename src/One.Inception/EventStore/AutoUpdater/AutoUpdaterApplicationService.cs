@@ -4,10 +4,10 @@ using System.Threading.Tasks;
 namespace One.Inception.EventStore.AutoUpdater;
 
 public class AutoUpdaterApplicationService : ApplicationService<AutoUpdater>, ISystemAppService,
-    ICommandHandler<RequestAutoUpdate>,
-    ICommandHandler<BulkRequestAutoUpdate>,
-    ICommandHandler<FinishAutoUpdate>,
-    ICommandHandler<FailAutoUpdate>
+    ICommandHandle<RequestAutoUpdate>,
+    ICommandHandle<BulkRequestAutoUpdate>,
+    ICommandHandle<FinishAutoUpdate>,
+    ICommandHandle<FailAutoUpdate>
 {
     public AutoUpdaterApplicationService(IAggregateRepository repository) : base(repository) { }
 

@@ -25,11 +25,11 @@ public sealed class InceptionHost : IInceptionHost
     private readonly IConsumer<IEventStoreIndex> indices;
     private readonly IConsumer<IProjection> projections;
     private readonly IConsumer<IPort> ports;
-    private readonly IConsumer<ISaga> sagas;
+    private readonly IConsumer<IProcessManager> processManagers;
     private readonly IConsumer<IGateway> gateways;
     private readonly IConsumer<ITrigger> triggers;
     private readonly IConsumer<ISystemAppService> systemAppServices;
-    private readonly IConsumer<ISystemSaga> systemSagas;
+    private readonly IConsumer<ISystemProcessManager> systemProcessManagers;
     private readonly IConsumer<ISystemPort> systemPorts;
     private readonly IConsumer<ISystemTrigger> systemTriggers;
     private readonly IConsumer<ISystemProjection> systemProjections;
@@ -46,11 +46,11 @@ public sealed class InceptionHost : IInceptionHost
         IConsumer<IEventStoreIndex> indices,
         IConsumer<IProjection> projections,
         IConsumer<IPort> ports,
-        IConsumer<ISaga> sagas,
+        IConsumer<IProcessManager> processManagers,
         IConsumer<IGateway> gateways,
         IConsumer<ITrigger> triggers,
         IConsumer<ISystemAppService> systemAppServices,
-        IConsumer<ISystemSaga> systemSagas,
+        IConsumer<ISystemProcessManager> systemProcessManagers,
         IConsumer<ISystemPort> systemPorts,
         IConsumer<ISystemTrigger> systemTriggers,
         IConsumer<ISystemProjection> systemProjections,
@@ -66,11 +66,11 @@ public sealed class InceptionHost : IInceptionHost
         this.indices = indices;
         this.projections = projections ?? throw new ArgumentNullException(nameof(projections));
         this.ports = ports ?? throw new ArgumentNullException(nameof(ports));
-        this.sagas = sagas ?? throw new ArgumentNullException(nameof(sagas));
+        this.processManagers = processManagers ?? throw new ArgumentNullException(nameof(processManagers));
         this.gateways = gateways ?? throw new ArgumentNullException(nameof(gateways));
         this.triggers = triggers;
         this.systemAppServices = systemAppServices;
-        this.systemSagas = systemSagas;
+        this.systemProcessManagers = systemProcessManagers;
         this.systemPorts = systemPorts;
         this.systemTriggers = systemTriggers;
         this.systemProjections = systemProjections;
@@ -96,7 +96,7 @@ public sealed class InceptionHost : IInceptionHost
                 await systemAppServices.StartAsync().ConfigureAwait(false);
                 await systemPorts.StartAsync().ConfigureAwait(false);
                 await systemProjections.StartAsync().ConfigureAwait(false);
-                await systemSagas.StartAsync().ConfigureAwait(false);
+                await systemProcessManagers.StartAsync().ConfigureAwait(false);
                 await systemTriggers.StartAsync().ConfigureAwait(false);
             }
 
@@ -108,7 +108,7 @@ public sealed class InceptionHost : IInceptionHost
                 await indices.StartAsync().ConfigureAwait(false);
             }
 
-            if (hostOptions.SagasEnabled) await sagas.StartAsync().ConfigureAwait(false);
+            if (hostOptions.ProcessManagersEnabled) await processManagers.StartAsync().ConfigureAwait(false);
             if (hostOptions.ProjectionsEnabled) await projections.StartAsync().ConfigureAwait(false);
             if (hostOptions.PortsEnabled) await ports.StartAsync().ConfigureAwait(false);
             if (hostOptions.GatewaysEnabled) await gateways.StartAsync().ConfigureAwait(false);
@@ -135,7 +135,7 @@ public sealed class InceptionHost : IInceptionHost
             List<Task> stopTasks = new List<Task>();
 
             if (hostOptions.ApplicationServicesEnabled) stopTasks.Add(appServices.StopAsync());
-            if (hostOptions.SagasEnabled) stopTasks.Add(sagas.StopAsync());
+            if (hostOptions.ProcessManagersEnabled) stopTasks.Add(processManagers.StopAsync());
             if (hostOptions.ProjectionsEnabled) stopTasks.Add(projections.StopAsync());
             if (hostOptions.PortsEnabled) stopTasks.Add(ports.StopAsync());
             if (hostOptions.GatewaysEnabled) stopTasks.Add(gateways.StopAsync());
@@ -147,7 +147,7 @@ public sealed class InceptionHost : IInceptionHost
                 stopTasks.Add(systemAppServices.StopAsync());
                 stopTasks.Add(systemPorts.StopAsync());
                 stopTasks.Add(systemProjections.StopAsync());
-                stopTasks.Add(systemSagas.StopAsync());
+                stopTasks.Add(systemProcessManagers.StopAsync());
                 stopTasks.Add(systemTriggers.StopAsync());
                 stopTasks.Add(systemIndices.StopAsync());
                 stopTasks.Add(indices.StopAsync());
@@ -189,7 +189,7 @@ public sealed class InceptionHost : IInceptionHost
         try
         {
             if (oldOptions.ApplicationServicesEnabled == false && newOptions.ApplicationServicesEnabled == true) appServices.StartAsync();
-            if (oldOptions.SagasEnabled == false && newOptions.SagasEnabled == true) sagas.StartAsync();
+            if (oldOptions.ProcessManagersEnabled == false && newOptions.ProcessManagersEnabled == true) processManagers.StartAsync();
             if (oldOptions.ProjectionsEnabled == false && newOptions.ProjectionsEnabled == true) projections.StartAsync();
             if (oldOptions.PortsEnabled == false && newOptions.PortsEnabled == true) ports.StartAsync();
             if (oldOptions.GatewaysEnabled == false && newOptions.GatewaysEnabled == true) gateways.StartAsync();
@@ -208,7 +208,7 @@ public sealed class InceptionHost : IInceptionHost
         try
         {
             if (oldOptions.ApplicationServicesEnabled == true && newOptions.ApplicationServicesEnabled == false) appServices.StopAsync();
-            if (oldOptions.SagasEnabled == true && newOptions.SagasEnabled == false) sagas.StopAsync();
+            if (oldOptions.ProcessManagersEnabled == true && newOptions.ProcessManagersEnabled == false) processManagers.StopAsync();
             if (oldOptions.ProjectionsEnabled == true && newOptions.ProjectionsEnabled == false) projections.StopAsync();
             if (oldOptions.PortsEnabled == true && newOptions.PortsEnabled == false) ports.StopAsync();
             if (oldOptions.GatewaysEnabled == true && newOptions.GatewaysEnabled == false) gateways.StopAsync();

@@ -34,7 +34,7 @@ public enum Bootstraps
 
     Aggregates = 30,
     Ports = 40,
-    Sagas = 50,
+    ProcessManagers = 50,
     EventStoreIndices = 55,
     Projections = 60,
     Gateways = 70,

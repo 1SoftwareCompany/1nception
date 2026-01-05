@@ -83,7 +83,7 @@ public class ProjectionVersionHelper
 
     public IEnumerable<Type> GetInvolvedEventTypes(Type projectionType)
     {
-        var ieventHandler = typeof(IEventHandler<>);
+        var ieventHandler = typeof(IEventHandle<>);
         var interfaces = projectionType.GetInterfaces().Where(x => x.IsGenericType && x.GetGenericTypeDefinition() == ieventHandler);
         foreach (var @interface in interfaces)
         {

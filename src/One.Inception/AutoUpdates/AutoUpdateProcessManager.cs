@@ -8,12 +8,12 @@ using System.Threading.Tasks;
 namespace One.Inception.AutoUpdates;
 
 [DataContract(Name = "a460729e-d36f-4da6-beb2-a9d0180eb844")]
-public class AutoUpdateSaga : Saga, ISystemSaga, // TODO: in future we can have scheduled messages
-    IEventHandler<AutoUpdateTriggered>
+public class AutoUpdateProcessManager : ProcessManager, ISystemProcessManager, // TODO: in future we can have scheduled messages
+    IEventHandle<AutoUpdateTriggered>
 {
     private readonly IAutoUpdaterStrategy strategy;
 
-    public AutoUpdateSaga(IAutoUpdaterStrategy strategy, IPublisher<ICommand> commandPublisher, IPublisher<IScheduledMessage> timeoutRequestPublisher) : base(commandPublisher, timeoutRequestPublisher)
+    public AutoUpdateProcessManager(IAutoUpdaterStrategy strategy, IPublisher<ICommand> commandPublisher, IPublisher<IScheduledMessage> timeoutRequestPublisher) : base(commandPublisher, timeoutRequestPublisher)
     {
         this.strategy = strategy;
     }

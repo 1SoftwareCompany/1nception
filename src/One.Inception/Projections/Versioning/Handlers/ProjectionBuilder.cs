@@ -14,11 +14,11 @@ using System.Threading;
 namespace One.Inception.Projections.Versioning;
 
 [DataContract(Name = "d0dc548e-cbb1-4cb8-861b-e5f6bef68116")]
-public sealed class ProjectionBuilder : Saga, ISystemSaga,
-    IEventHandler<ProjectionVersionRequested>,
-    IEventHandler<ProjectionVersionRequestPaused>,
-    ISagaTimeoutHandler<CreateNewProjectionVersion>,
-    ISagaTimeoutHandler<ProjectionVersionRequestHeartbeat>
+public sealed class ProjectionBuilder : ProcessManager, ISystemProcessManager,
+    IEventHandle<ProjectionVersionRequested>,
+    IEventHandle<ProjectionVersionRequestPaused>,
+    IProcessManagerTimeoutHandle<CreateNewProjectionVersion>,
+    IProcessManagerTimeoutHandle<ProjectionVersionRequestHeartbeat>
 {
     private static readonly Action<ILogger, JobExecutionStatus, Exception> LogProjectionReplayStatus = LoggerMessage.Define<JobExecutionStatus>(LogLevel.Debug, InceptionLogEvent.ProjectionWrite, "Replay projection version {@inception_projection_rebuild}.");
 
@@ -82,37 +82,37 @@ public sealed class ProjectionBuilder : Saga, ISystemSaga,
         return job;
     }
 
-    public async Task HandleAsync(CreateNewProjectionVersion sagaTimeout)
+    public async Task HandleAsync(CreateNewProjectionVersion processManagersTimeout)
     {
-        if (tenants.Tenants.Contains(sagaTimeout.Tenant) == false)
+        if (tenants.Tenants.Contains(processManagersTimeout.Tenant) == false)
         {
             logger.LogWarning("Tenant is not present in the tenants configuration, and the projection won't be rebuilt.");
             return;
         }
 
-        IInceptionJob<object> job = GetJob(sagaTimeout.ProjectionVersionRequest.Version, sagaTimeout.ProjectionVersionRequest.ReplayEventsOptions, sagaTimeout.ProjectionVersionRequest.Timebox);
+        IInceptionJob<object> job = GetJob(processManagersTimeout.ProjectionVersionRequest.Version, processManagersTimeout.ProjectionVersionRequest.ReplayEventsOptions, processManagersTimeout.ProjectionVersionRequest.Timebox);
         JobExecutionStatus result = await jobRunner.ExecuteAsync(job).ConfigureAwait(false);
         LogProjectionReplayStatus(logger, result, null);
 
         if (result == JobExecutionStatus.Running)
         {
-            await RequestTimeoutAsync(new CreateNewProjectionVersion(sagaTimeout.ProjectionVersionRequest, DateTime.UtcNow.AddSeconds(60)));
+            await RequestTimeoutAsync(new CreateNewProjectionVersion(processManagersTimeout.ProjectionVersionRequest, DateTime.UtcNow.AddSeconds(60)));
         }
         else if (result == JobExecutionStatus.Failed)
         {
-            var cancel = new CancelProjectionVersionRequest(sagaTimeout.ProjectionVersionRequest.Id, sagaTimeout.ProjectionVersionRequest.Version, "Failed");
+            var cancel = new CancelProjectionVersionRequest(processManagersTimeout.ProjectionVersionRequest.Id, processManagersTimeout.ProjectionVersionRequest.Version, "Failed");
             await commandPublisher.PublishAsync(cancel);
         }
         else if (result == JobExecutionStatus.Completed)
         {
-            var finalize = new FinalizeProjectionVersionRequest(sagaTimeout.ProjectionVersionRequest.Id, sagaTimeout.ProjectionVersionRequest.Version);
+            var finalize = new FinalizeProjectionVersionRequest(processManagersTimeout.ProjectionVersionRequest.Id, processManagersTimeout.ProjectionVersionRequest.Version);
             await commandPublisher.PublishAsync(finalize);
         }
     }
 
-    public Task HandleAsync(ProjectionVersionRequestHeartbeat sagaTimeout)
+    public Task HandleAsync(ProjectionVersionRequestHeartbeat processManagerTimeout)
     {
-        var timedout = new TimeoutProjectionVersionRequest(sagaTimeout.ProjectionVersionRequest.Id, sagaTimeout.ProjectionVersionRequest.Version, sagaTimeout.ProjectionVersionRequest.Timebox);
+        var timedout = new TimeoutProjectionVersionRequest(processManagerTimeout.ProjectionVersionRequest.Id, processManagerTimeout.ProjectionVersionRequest.Version, processManagerTimeout.ProjectionVersionRequest.Timebox);
 
         return commandPublisher.PublishAsync(timedout);
     }
