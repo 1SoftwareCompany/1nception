@@ -20,6 +20,16 @@ public class PlayerOptions
 
     public int MaxDegreeOfParallelism { get; set; } = 2;
 
+    /// <summary>
+    /// Enumerates events for specific aggregate root id
+    /// </summary>
+    public IBlobId AggregateRootId { get; set; }
+
+    /// <summary>
+    /// Enumerates the last event for some aggregate and event type
+    /// </summary>
+    public bool ShouldReplayLastEventOnly { get; set; }
+
     public PlayerOptions WithPaginationToken(string token)
     {
         return new PlayerOptions()

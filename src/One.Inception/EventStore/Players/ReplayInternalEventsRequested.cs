@@ -3,10 +3,10 @@ using System.Runtime.Serialization;
 
 namespace One.Inception.EventStore.Players;
 
-[DataContract(Name = "6574cff5-9195-4183-9f98-83e80da842cb")]
-public sealed class ReplayPublicEventsRequested : ISystemSignal
+[DataContract(Name = "64af29f3-228e-49ad-b761-a21188f5d062")]
+public sealed class ReplayInternalEventsRequested : ISystemSignal
 {
-    public ReplayPublicEventsRequested()
+    public ReplayInternalEventsRequested()
     {
         Timestamp = DateTime.Now;
     }

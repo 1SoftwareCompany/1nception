@@ -45,6 +45,7 @@ public class JobDiscovery : DiscoveryBase<IInceptionJob<object>>
             yield return new DiscoveredModel(typeof(IRebuildIndex_EventToAggregateRootId_JobFactory), typeof(RebuildIndex_EventToAggregateRootId_JobFactory), ServiceLifetime.Transient);
             yield return new DiscoveredModel(typeof(RebuildIndex_MessageCounter_JobFactory), typeof(RebuildIndex_MessageCounter_JobFactory), ServiceLifetime.Transient);
             yield return new DiscoveredModel(typeof(ReplayPublicEvents_JobFactory), typeof(ReplayPublicEvents_JobFactory), ServiceLifetime.Transient);
+            yield return new DiscoveredModel(typeof(ReplayInternalEvents_JobFactory), typeof(ReplayInternalEvents_JobFactory), ServiceLifetime.Transient);
 
             //  if (hasProjectionStore)
             {
