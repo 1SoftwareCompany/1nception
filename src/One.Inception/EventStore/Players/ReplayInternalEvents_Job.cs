@@ -35,7 +35,7 @@ public class ReplayInternalEvents_Job : InceptionJob<ReplayInternalEvents_JobDat
             PaginationToken = Data.EventTypePaging?.PaginationToken,
             After = Data.After,
             Before = Data.Before ?? DateTimeOffset.UtcNow,
-            AggregateRootId = new Urn(Data.AggregateId),
+            AggregateRootId = Data.AggregateId is not null ? new Urn(Data.AggregateId) : null,
             ShouldReplayLastEventOnly = Data.ShouldReplayLastEventOnly
         };
 

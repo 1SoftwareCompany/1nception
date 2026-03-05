@@ -22,4 +22,6 @@ public interface IClusterOperations
     /// <typeparam name="TData">The data.</typeparam>
     /// <returns>Returns the state from the cluster. Null if there is no state.</returns>
     Task<TData> PingAsync<TData>(TData data, CancellationToken cancellationToken = default) where TData : class, new();
+
+    Task<bool> DeleteAsync(CancellationToken cancellationToken = default);
 }
