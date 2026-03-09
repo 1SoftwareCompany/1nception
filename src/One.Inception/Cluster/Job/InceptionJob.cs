@@ -89,8 +89,7 @@ public abstract class InceptionJob<TData> : IInceptionJob<TData>
 
                 if (result == JobExecutionStatus.Completed)
                 {
-                    //think about how we want to handle this, because on InceptionJobRunner.Dispose().KingIsDead() we have already deleted the key and this causes an exception.
-                    //await cluster.DeleteAsync(cancellationToken).ConfigureAwait(false);
+                    await cluster.DeleteAsync(cancellationToken).ConfigureAwait(false);
                 }
 
                 return result;
