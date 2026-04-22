@@ -11,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using One.Inception.FaultHandling;
+using One.Inception.Workflow;
 
 namespace One.Inception;
 
@@ -46,6 +47,7 @@ public static class InceptionServiceCollectionExtensions
             provider.HandleDiscoveredModel(result);
 
         services.AddHeartbeat();
+        services.AddSingleton(InceptionTelemetrySources.Instance);
 
         return services;
     }
