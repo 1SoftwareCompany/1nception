@@ -183,7 +183,7 @@ internal class LoggingPublishHandler : DelegatingPublishHandler
 
 internal class ActivityPublishHandler : DelegatingPublishHandler
 {
-    private const string TelemetryTraceParent = "telemetry_traceparent";
+    private const string TelemetryTraceParent = "traceparent";
     private readonly DiagnosticListener diagnosticListener;
     private readonly ActivitySource activitySource;
     private readonly ILogger<ActivityPublishHandler> logger;
