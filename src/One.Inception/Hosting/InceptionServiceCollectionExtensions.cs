@@ -83,7 +83,7 @@ public static class InceptionServiceCollectionExtensions
         {
             services.AddSingleton<DiagnosticListener>(new DiagnosticListener("Inception"));
 
-            services.AddSingleton<ActivitySource>(new ActivitySource("One.Inception", "12.0.0"));
+            services.AddSingleton<ActivitySource>(new ActivitySource("One.Inception", "13.0.0"));
         }
 
         return services;
