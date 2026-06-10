@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using One.Inception.Hosting.Heartbeat;
+using One.Inception.MessageProcessing;
 using One.Inception.Multitenancy;
 using One.Inception.Userfull;
 using One.Inception.Workflow;
@@ -180,6 +181,25 @@ internal class LoggingPublishHandler : DelegatingPublishHandler
         }
     }
 }
+internal class TracePublishHandler : DelegatingPublishHandler
+{
+    private readonly InceptionMessageTracer tracer;
+
+    public TracePublishHandler(InceptionMessageTracer tracer)
+    {
+        this.tracer = tracer;
+    }
+
+    protected internal override Task<PublishResult> PublishInternalAsync(InceptionMessage message)
+    {
+        TraceInfo trace = tracer.GenerateTrace(message.Id.ToString());
+        message.Headers.TryAdd(MessageHeader.MessageId, trace.MessageId);
+        message.Headers.TryAdd(MessageHeader.CausationId, trace.CausationId);
+        message.Headers.TryAdd(MessageHeader.CorrelationId, trace.CorrelationId);
+
+        return base.PublishInternalAsync(message);
+    }
+}
 
 internal class ActivityPublishHandler : DelegatingPublishHandler
 {
@@ -286,7 +306,7 @@ public abstract class PublisherBase<TMessage> : PublisherHandler, IPublisher<TMe
 
         var inceptionMessage = new InceptionMessage(message, messageHeaders);
 
-        var enumerator = handlers.GetEnumerator();
+        IEnumerator<DelegatingPublishHandler> enumerator = handlers.GetEnumerator();
         bool hasHandlers = enumerator.MoveNext();
         if (hasHandlers == false)
         {

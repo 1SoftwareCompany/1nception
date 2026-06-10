@@ -22,5 +22,11 @@ public static class MessageHeader
 
     public const string RecipientBoundedContext = "recipient_bounded_context";
 
+    public const string MessageId = "message_id";
+
+    public const string CorrelationId = "correlation_id";
+
+    public const string CausationId = "causation_id";
+
     public const string TTL = "ttl";
 }

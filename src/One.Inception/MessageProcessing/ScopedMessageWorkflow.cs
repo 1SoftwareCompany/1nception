@@ -7,6 +7,71 @@ using Microsoft.Extensions.Logging;
 
 namespace One.Inception.MessageProcessing;
 
+public interface ITracer
+{
+    void Record(string incomingMessageId, string correlationId = null);
+    TraceInfo GenerateTrace(string messageId = null);
+    TraceInfo GetTrace();
+}
+
+public class InceptionMessageTracer : ITracer
+{
+    private readonly IInceptionContextAccessor contextAccessor;
+
+    public InceptionMessageTracer(IInceptionContextAccessor contextAccessor)
+    {
+        this.contextAccessor = contextAccessor;
+    }
+
+    public TraceInfo GenerateTrace(string messageId = null)
+    {
+        if (string.IsNullOrEmpty(messageId))
+            messageId = Guid.NewGuid().ToString();
+
+        string causationId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.CausationId, out object causationIdObj) ? causationIdObj.ToString() : messageId;
+        string correlationId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.CorrelationId, out object correlationIdObj) ? correlationIdObj.ToString() : messageId;
+
+        TraceInfo traceInfo = new TraceInfo
+        {
+            MessageId = messageId,
+            CausationId = causationId,
+            CorrelationId = correlationId
+        };
+
+        return traceInfo;
+    }
+
+    public void Record(string incomingMessageId, string correlationId = null)
+    {
+        if (contextAccessor.Context.Trace.ContainsKey(MessageHeader.CausationId) == false)
+            contextAccessor.Context.Trace.Add(MessageHeader.CausationId, incomingMessageId);
+
+        if (contextAccessor.Context.Trace.ContainsKey(MessageHeader.CorrelationId) == false)
+            contextAccessor.Context.Trace.Add(MessageHeader.CorrelationId, correlationId ?? incomingMessageId);
+    }
+
+    public TraceInfo GetTrace()
+    {
+        TraceInfo traceInfo = new TraceInfo
+        {
+            MessageId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.MessageId, out object messageId) ? messageId.ToString() : null,
+            CausationId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.CausationId, out object causationId) ? causationId.ToString() : null,
+            CorrelationId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.CorrelationId, out object correlationId) ? correlationId.ToString() : null
+        };
+
+        return traceInfo;
+    }
+}
+
+public record class TraceInfo
+{
+
+
+    public string MessageId { get; set; }
+    public string CausationId { get; set; }
+    public string CorrelationId { get; set; }
+}
+
 public class ScopedMessageWorkflow : Workflow<HandleContext>
 {
     private const string ErrorMessage = "Somehow the IServiceScope has been already created and there will be an unexpected behavior after this message.";
@@ -38,7 +103,7 @@ public class ScopedMessageWorkflow : Workflow<HandleContext>
             if (scopes.TryAdd(handleContext, scope) == false)
                 hasScopeError = true;
 
-            var context = contextFactory.Create(tenant ?? handleContext.Message, scope.ServiceProvider);
+            InceptionContext context = contextFactory.Create(tenant ?? handleContext.Message, scope.ServiceProvider);
             foreach (var header in handleContext.Message.Headers)
             {
                 context.Trace.Add(header.Key, header.Value);
@@ -55,6 +120,11 @@ public class ScopedMessageWorkflow : Workflow<HandleContext>
             logger.LogCritical(ErrorMessage);
             throw new Exception(ErrorMessage);
         }
+
+        // tracing begins here
+        ITracer tracer = handleContext.ServiceProvider.GetRequiredService<InceptionMessageTracer>();
+        tracer.Record(handleContext.Message.Id.ToString());
+        // tracing ends here
 
         return base.CreateExecutionContext(handleContext);
     }

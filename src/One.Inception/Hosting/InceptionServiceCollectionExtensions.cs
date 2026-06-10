@@ -32,6 +32,7 @@ public static class InceptionServiceCollectionExtensions
     {
         services.AddBooter();
         services.AddOpenTelemetry();
+        services.AddTracer();
         services.AddTenantSupport();
         services.AddHostOptions();
         services.AddDefaultSubscribers(provider);
@@ -85,6 +86,14 @@ public static class InceptionServiceCollectionExtensions
 
             services.AddSingleton<ActivitySource>(new ActivitySource("One.Inception", "13.0.0"));
         }
+
+        return services;
+    }
+
+    internal static IServiceCollection AddTracer(this IServiceCollection services)
+    {
+        services.AddSingleton<ITracer, InceptionMessageTracer>();
+        services.AddSingleton<InceptionMessageTracer, InceptionMessageTracer>();
 
         return services;
     }
