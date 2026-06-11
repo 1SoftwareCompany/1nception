@@ -7,13 +7,6 @@ using Microsoft.Extensions.Logging;
 
 namespace One.Inception.MessageProcessing;
 
-public interface ITracer
-{
-    void Record(string incomingMessageId, string correlationId = null);
-    TraceInfo GenerateTrace(string messageId = null);
-    TraceInfo GetTrace();
-}
-
 public class InceptionMessageTracer : ITracer
 {
     private readonly IInceptionContextAccessor contextAccessor;
@@ -29,55 +22,46 @@ public class InceptionMessageTracer : ITracer
             messageId = Guid.NewGuid().ToString();
 
         if (contextAccessor.Context is null)
-            return new TraceInfo
-            {
-                MessageId = messageId,
-                CausationId = messageId,
-                CorrelationId = messageId
-            };
+            return new TraceInfo(messageId, messageId, messageId);
 
         string causationId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.CausationId, out object causationIdObj) ? causationIdObj.ToString() : messageId;
         string correlationId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.CorrelationId, out object correlationIdObj) ? correlationIdObj.ToString() : messageId;
 
-        TraceInfo traceInfo = new TraceInfo
-        {
-            MessageId = messageId,
-            CausationId = causationId,
-            CorrelationId = correlationId
-        };
+        TraceInfo traceInfo = new TraceInfo(messageId, causationId, correlationId);
 
         return traceInfo;
     }
 
     public void Record(string incomingMessageId, string correlationId = null)
     {
-        if (contextAccessor.Context.Trace.ContainsKey(MessageHeader.CausationId) == false)
-            contextAccessor.Context.Trace.Add(MessageHeader.CausationId, incomingMessageId);
+        if (string.IsNullOrEmpty(incomingMessageId) == false)
+        {
+            contextAccessor.Context.Trace[MessageHeader.CausationId] = incomingMessageId;
 
-        if (contextAccessor.Context.Trace.ContainsKey(MessageHeader.CorrelationId) == false)
-            contextAccessor.Context.Trace.Add(MessageHeader.CorrelationId, correlationId ?? incomingMessageId);
+            if (contextAccessor.Context.Trace.ContainsKey(MessageHeader.CorrelationId) == false)
+            {
+                if (string.IsNullOrEmpty(correlationId))
+                {
+                    contextAccessor.Context.Trace[MessageHeader.CorrelationId] = incomingMessageId;
+                }
+                else
+                {
+                    contextAccessor.Context.Trace[MessageHeader.CorrelationId] = correlationId;
+                }
+            }
+        }
     }
 
     public TraceInfo GetTrace()
     {
-        TraceInfo traceInfo = new TraceInfo
-        {
-            MessageId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.MessageId, out object messageId) ? messageId.ToString() : null,
-            CausationId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.CausationId, out object causationId) ? causationId.ToString() : null,
-            CorrelationId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.CorrelationId, out object correlationId) ? correlationId.ToString() : null
-        };
+        string theMsgId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.MessageId, out object messageId) ? messageId.ToString() : null;
+        string theCausId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.CausationId, out object causationId) ? causationId.ToString() : null;
+        string theCorrId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.CorrelationId, out object correlationId) ? correlationId.ToString() : null;
+
+        TraceInfo traceInfo = new TraceInfo(theMsgId, theCausId, theCorrId);
 
         return traceInfo;
     }
-}
-
-public record class TraceInfo
-{
-
-
-    public string MessageId { get; set; }
-    public string CausationId { get; set; }
-    public string CorrelationId { get; set; }
 }
 
 public class ScopedMessageWorkflow : Workflow<HandleContext>
@@ -129,10 +113,14 @@ public class ScopedMessageWorkflow : Workflow<HandleContext>
             throw new Exception(ErrorMessage);
         }
 
-        // tracing begins here
-        ITracer tracer = handleContext.ServiceProvider.GetRequiredService<InceptionMessageTracer>();
-        tracer.Record(handleContext.Message.Id.ToString());
-        // tracing ends here
+        try
+        {
+            // tracing begins here
+            ITracer tracer = handleContext.ServiceProvider.GetRequiredService<InceptionMessageTracer>();
+            tracer.Record(handleContext.Message.Id.ToString());
+            // tracing ends here
+        }
+        catch (Exception ex) when (True(() => logger.LogError(ex, "Failed to record trace for {inception_MessageType}. Message is still handled, do not worry... but tracing is lost. {@inception_Message}", handleContext.Message.GetMessageType().Name, handleContext.Message))) { }
 
         return base.CreateExecutionContext(handleContext);
     }

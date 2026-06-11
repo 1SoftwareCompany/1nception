@@ -67,12 +67,6 @@ internal sealed class AggregateRepositoryAndEventPublisher : IAggregateRepositor
         messageHeaders.Add(MessageHeader.AggregateRootEventPosition, eventPosition.ToString());
         messageHeaders.Add(MessageHeader.AggregateCommitTimestamp, aggregatecommit.Timestamp.ToString());
 
-        foreach (var trace in contextAccessor.Context.Trace)
-        {
-            if (messageHeaders.ContainsKey(trace.Key) == false)
-                messageHeaders.Add(trace.Key, trace.Value.ToString());
-        }
-
         return messageHeaders;
     }
 }

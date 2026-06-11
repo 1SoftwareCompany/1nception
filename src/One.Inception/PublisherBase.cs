@@ -184,18 +184,26 @@ internal class LoggingPublishHandler : DelegatingPublishHandler
 internal class TracePublishHandler : DelegatingPublishHandler
 {
     private readonly InceptionMessageTracer tracer;
+    private readonly ILogger<TracePublishHandler> logger;
 
-    public TracePublishHandler(InceptionMessageTracer tracer)
+    public TracePublishHandler(InceptionMessageTracer tracer, ILogger<TracePublishHandler> logger)
     {
         this.tracer = tracer;
+        this.logger = logger;
     }
 
     protected internal override Task<PublishResult> PublishInternalAsync(InceptionMessage message)
     {
-        TraceInfo trace = tracer.GenerateTrace(message.Id.ToString());
-        message.Headers.TryAdd(MessageHeader.MessageId, trace.MessageId);
-        message.Headers.TryAdd(MessageHeader.CausationId, trace.CausationId);
-        message.Headers.TryAdd(MessageHeader.CorrelationId, trace.CorrelationId);
+        try
+        {
+            TraceInfo trace = tracer.GenerateTrace(message.Id.ToString());
+
+            message.Headers.TryAdd(MessageHeader.MessageId, trace.MessageId);
+            message.Headers.TryAdd(MessageHeader.CausationId, trace.CausationId);
+            message.Headers.TryAdd(MessageHeader.CorrelationId, trace.CorrelationId);
+        }
+
+        catch (Exception ex) when (True(() => logger.LogError(ex, "Failed to add trace headers publish message {inception_MessageType}. Message is still published, do not worry... but tracing is lost. {@inception_Message}", message.GetMessageType().Name, message))) { }
 
         return base.PublishInternalAsync(message);
     }

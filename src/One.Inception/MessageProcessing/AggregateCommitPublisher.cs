@@ -43,11 +43,6 @@ internal sealed class AggregateCommitPublisher : IAggregateCommitInterceptor
             { MessageHeader.AggregateRootId, Convert.ToBase64String(commit.AggregateRootId.Span) }
         };
 
-        foreach (var trace in contextAccessor.Context.Trace)
-        {
-            messageHeaders.Add(trace.Key, trace.Value.ToString());
-        }
-
         return messageHeaders;
     }
 }
