@@ -28,6 +28,14 @@ public class InceptionMessageTracer : ITracer
         if (string.IsNullOrEmpty(messageId))
             messageId = Guid.NewGuid().ToString();
 
+        if (contextAccessor.Context is null)
+            return new TraceInfo
+            {
+                MessageId = messageId,
+                CausationId = messageId,
+                CorrelationId = messageId
+            };
+
         string causationId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.CausationId, out object causationIdObj) ? causationIdObj.ToString() : messageId;
         string correlationId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.CorrelationId, out object correlationIdObj) ? correlationIdObj.ToString() : messageId;
 
