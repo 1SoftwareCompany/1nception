@@ -3,7 +3,6 @@ using Microsoft.Extensions.Options;
 using One.Inception.Hosting.Heartbeat;
 using One.Inception.MessageProcessing;
 using One.Inception.Multitenancy;
-using One.Inception.Userfull;
 using One.Inception.Workflow;
 using System;
 using System.Collections.Generic;
@@ -183,20 +182,20 @@ internal class LoggingPublishHandler : DelegatingPublishHandler
 }
 internal class TracePublishHandler : DelegatingPublishHandler
 {
-    private readonly InceptionMessageTracer tracer;
+    private readonly MessageTracer tracer;
     private readonly ILogger<TracePublishHandler> logger;
 
-    public TracePublishHandler(InceptionMessageTracer tracer, ILogger<TracePublishHandler> logger)
+    public TracePublishHandler(MessageTracer tracer, ILogger<TracePublishHandler> logger)
     {
         this.tracer = tracer;
         this.logger = logger;
     }
 
-    protected internal override Task<PublishResult> PublishInternalAsync(InceptionMessage message)
+    protected internal override async Task<PublishResult> PublishInternalAsync(InceptionMessage message)
     {
         try
         {
-            TraceInfo trace = tracer.GenerateTrace(message.Id.ToString());
+            MessageTraceInfo trace = await tracer.CreateTraceAsync(message.Id.ToString());
 
             message.Headers.TryAdd(MessageHeader.MessageId, trace.MessageId);
             message.Headers.TryAdd(MessageHeader.CausationId, trace.CausationId);
@@ -205,7 +204,7 @@ internal class TracePublishHandler : DelegatingPublishHandler
 
         catch (Exception ex) when (True(() => logger.LogError(ex, "Failed to add trace headers publish message {inception_MessageType}. Message is still published, do not worry... but tracing is lost. {@inception_Message}", message.GetMessageType().Name, message))) { }
 
-        return base.PublishInternalAsync(message);
+        return await base.PublishInternalAsync(message);
     }
 }
 

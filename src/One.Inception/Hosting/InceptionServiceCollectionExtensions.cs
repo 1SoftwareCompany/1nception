@@ -32,7 +32,7 @@ public static class InceptionServiceCollectionExtensions
     {
         services.AddBooter();
         services.AddOpenTelemetry();
-        services.AddTracer();
+        services.AddInceptionMessageTracer();
         services.AddTenantSupport();
         services.AddHostOptions();
         services.AddDefaultSubscribers(provider);
@@ -90,10 +90,11 @@ public static class InceptionServiceCollectionExtensions
         return services;
     }
 
-    internal static IServiceCollection AddTracer(this IServiceCollection services)
+    internal static IServiceCollection AddInceptionMessageTracer(this IServiceCollection services)
     {
-        services.AddSingleton<ITracer, InceptionMessageTracer>();
-        services.AddSingleton<InceptionMessageTracer, InceptionMessageTracer>();
+        services.AddSingleton<IMessageTracer, InceptionMessageTracer>();
+        services.AddSingleton<InceptionMessageTracer>();
+        services.AddSingleton<MessageTracer>();
 
         return services;
     }
