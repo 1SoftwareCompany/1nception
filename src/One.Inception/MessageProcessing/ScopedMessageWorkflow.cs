@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using One.Inception.Workflow;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using One.MessageTracing;
 
 namespace One.Inception.MessageProcessing;
 

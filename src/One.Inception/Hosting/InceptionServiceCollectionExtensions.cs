@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using One.Inception.FaultHandling;
 using One.Inception.Workflow;
+using One.MessageTracing;
 
 namespace One.Inception;
 
@@ -32,13 +33,13 @@ public static class InceptionServiceCollectionExtensions
     {
         services.AddBooter();
         services.AddOpenTelemetry();
-        services.AddInceptionMessageTracer();
         services.AddTenantSupport();
         services.AddHostOptions();
         services.AddDefaultSubscribers(provider);
         services.AddJobManager();
         services.AddDangerZone();
         services.AddRetryStrategyOptions();
+        services.AddMessageTracing(AssemblyLoader.Assemblies.Values);
 
         var discoveryFinder = new DiscoveryScanner();
         var discoveryContext = new DiscoveryContext(AssemblyLoader.Assemblies.Values, provider.Configuration);
@@ -86,15 +87,6 @@ public static class InceptionServiceCollectionExtensions
 
             services.AddSingleton<ActivitySource>(new ActivitySource("One.Inception", "13.0.0"));
         }
-
-        return services;
-    }
-
-    internal static IServiceCollection AddInceptionMessageTracer(this IServiceCollection services)
-    {
-        services.AddSingleton<IMessageTracer, InceptionMessageTracer>();
-        services.AddSingleton<InceptionMessageTracer>();
-        services.AddSingleton<MessageTracer>();
 
         return services;
     }

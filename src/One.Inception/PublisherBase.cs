@@ -1,9 +1,9 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using One.Inception.Hosting.Heartbeat;
-using One.Inception.MessageProcessing;
 using One.Inception.Multitenancy;
 using One.Inception.Workflow;
+using One.MessageTracing;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
