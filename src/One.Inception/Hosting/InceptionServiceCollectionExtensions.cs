@@ -39,7 +39,7 @@ public static class InceptionServiceCollectionExtensions
         services.AddJobManager();
         services.AddDangerZone();
         services.AddRetryStrategyOptions();
-        services.AddMessageTracing(AssemblyLoader.Assemblies.Values);
+        services.AddInceptionMessageTracer();
 
         var discoveryFinder = new DiscoveryScanner();
         var discoveryContext = new DiscoveryContext(AssemblyLoader.Assemblies.Values, provider.Configuration);
@@ -124,6 +124,15 @@ public static class InceptionServiceCollectionExtensions
     {
         services.AddSingleton<RetryStrategyFactory>();
         services.AddOptions<RetryStrategyOptions, RetryStrategyOptionsProvider>();
+        return services;
+    }
+
+    internal static IServiceCollection AddInceptionMessageTracer(this IServiceCollection services)
+    {
+        services.AddMessageTracing();
+        services.AddSingleton<IMessageTracer, InceptionMessageTracer>();
+        services.AddSingleton<InceptionMessageTracer>();
+
         return services;
     }
 
