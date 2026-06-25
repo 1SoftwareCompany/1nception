@@ -18,12 +18,12 @@ public sealed class InceptionMessageTracer : IMessageTracer
             messageId = Guid.NewGuid().ToString();
 
         if (contextAccessor.Context is null)
-            return new MessageTraceInfo(messageId, messageId, messageId);
+            return new MessageTraceInfo(messageId, messageId, messageId, string.Empty);
 
         string causationId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.CausationId, out object causationIdObj) ? causationIdObj.ToString() : messageId;
         string correlationId = contextAccessor.Context.Trace.TryGetValue(MessageHeader.CorrelationId, out object correlationIdObj) ? correlationIdObj.ToString() : messageId;
 
-        MessageTraceInfo traceInfo = new MessageTraceInfo(messageId, causationId, correlationId);
+        MessageTraceInfo traceInfo = new MessageTraceInfo(messageId, causationId, correlationId, contextAccessor.Context.Tenant);
 
         return traceInfo;
     }
