@@ -30,6 +30,9 @@ public sealed class InceptionMessageTracer : IMessageTracer
 
     public void Record(string incomingMessageId, string correlationId = null)
     {
+        if (contextAccessor.Context is null)
+            return;
+
         if (string.IsNullOrEmpty(incomingMessageId) == false)
         {
             contextAccessor.Context.Trace[MessageHeader.CausationId] = incomingMessageId;
