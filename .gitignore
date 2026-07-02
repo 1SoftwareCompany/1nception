@@ -241,4 +241,6 @@ $RECYCLE.BIN/
 *.lnk
 
 # Directories which start with '.'
-**/.*/
+**/.*/\
+
+!.github/workflows/*
