@@ -96,7 +96,7 @@ public sealed class ProjectionBuilder : ProcessManager, ISystemProcessManager,
 
         if (result == JobExecutionStatus.Running)
         {
-            await RequestTimeoutAsync(new CreateNewProjectionVersion(processManagersTimeout.ProjectionVersionRequest, DateTime.UtcNow.AddSeconds(60)));
+            await RequestTimeoutAsync(new CreateNewProjectionVersion(processManagersTimeout.ProjectionVersionRequest, DateTime.UtcNow.AddSeconds(31)));
         }
         else if (result == JobExecutionStatus.Failed)
         {

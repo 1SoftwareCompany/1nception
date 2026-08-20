@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 namespace One.Inception;
 
 [InceptionStartup(Bootstraps.EventStoreIndices)]
-public class EventStoreIndicesStartup : IInceptionStartup /// TODO: make this <see cref="ITenantStartup"/>
+public class EventStoreIndicesStartup : IInceptionStartup
 {
     private TenantsOptions tenants;
     private InceptionHostOptions hostOptions;
@@ -27,10 +27,20 @@ public class EventStoreIndicesStartup : IInceptionStartup /// TODO: make this <s
         this.indexTypeContainer = indexTypeContainer;
 
         hostOptions.OnChange(hostOptionsChanged);
-        tenantsOptions.OnChange(async tenantOptions => await OptionsChangedBootstrapEventStoreIndexForTenantAsync(tenantOptions));
+        tenantsOptions.OnChange(TenantOptionsChanges);
     }
 
     public async Task BootstrapAsync()
+    {
+        await BootstrapInternalAsync(tenants.Tenants).ConfigureAwait(false);
+    }
+
+    public async Task BootstrapAsync(IEnumerable<string> tenants)
+    {
+        await BootstrapInternalAsync(tenants).ConfigureAwait(false);
+    }
+
+    public async Task BootstrapInternalAsync(IEnumerable<string> tenants)
     {
         if (hostOptions.ApplicationServicesEnabled == false)
             return;
@@ -38,16 +48,16 @@ public class EventStoreIndicesStartup : IInceptionStartup /// TODO: make this <s
         List<Task> tasks = new List<Task>();
         foreach (var index in indexTypeContainer.Items)
         {
-            foreach (var tenant in tenants.Tenants)
+            foreach (var tenant in tenants)
             {
-                tasks.Add(InitializeIndesForTenantAsync(index, tenant));
+                tasks.Add(InitializeIndicesForTenantAsync(index, tenant));
             }
         }
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
-    private Task InitializeIndesForTenantAsync(Type index, string tenant)
+    private Task InitializeIndicesForTenantAsync(Type index, string tenant)
     {
         if (hostOptions.ApplicationServicesEnabled)
         {
@@ -60,28 +70,14 @@ public class EventStoreIndicesStartup : IInceptionStartup /// TODO: make this <s
         return Task.CompletedTask;
     }
 
-    private async Task OptionsChangedBootstrapEventStoreIndexForTenantAsync(TenantsOptions newOptions)
+    private void TenantOptionsChanges(TenantsOptions newOptions)
     {
         if (tenants.Tenants.SequenceEqual(newOptions.Tenants) == false) // Check for difference between tenants and newOptions
         {
             if (logger.IsEnabled(LogLevel.Debug))
-                logger.LogDebug("tenants options re-loaded with {@options}", newOptions);
-
-            // Find the difference between the old and new tenants
-            // and bootstrap the new tenants
-            List<Task> tasks = new List<Task>();
-            IEnumerable<string> newTenants = newOptions.Tenants.Except(tenants.Tenants);
-            foreach (var index in indexTypeContainer.Items)
-            {
-                foreach (var tenant in newTenants)
-                {
-                    tasks.Add(InitializeIndesForTenantAsync(index, tenant));
-                }
-            }
+                logger.LogDebug("tenant options re-loaded with {@options}", newOptions);
 
             tenants = newOptions;
-
-            await Task.WhenAll(tasks).ConfigureAwait(false);
         }
     }
 

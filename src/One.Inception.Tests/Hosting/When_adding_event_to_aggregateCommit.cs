@@ -62,15 +62,15 @@ public class TestAssemblyScanner : IAssemblyScanner
         yield return typeof(PortsStartup);
     }
 
-    [InceptionStartup(Bootstraps.Environment)] public class EnvironmentStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
-    [InceptionStartup(Bootstraps.ExternalResource)] public class ExternalResourceStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
-    [InceptionStartup(Bootstraps.Configuration)] public class ConfigurationStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
-    [InceptionStartup(Bootstraps.Aggregates)] public class AggregatesStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
-    [InceptionStartup(Bootstraps.Ports)] public class PortsStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
-    [InceptionStartup(Bootstraps.ProcessManagers)] public class ProcessManagersStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
-    [InceptionStartup(Bootstraps.Projections)] public class ProjectionsStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
-    [InceptionStartup(Bootstraps.Projections)] public class SecondProjectionsStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
-    [InceptionStartup(Bootstraps.Gateways)] public class GatewaysStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
-    [InceptionStartup(Bootstraps.Runtime)] public class RuntimeStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
-    public class NoAttributeStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.Environment)] public class EnvironmentStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.ExternalResource)] public class ExternalResourceStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.Configuration)] public class ConfigurationStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.Aggregates)] public class AggregatesStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.Ports)] public class PortsStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.ProcessManagers)] public class ProcessManagersStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.Projections)] public class ProjectionsStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.Projections)] public class SecondProjectionsStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.Gateways)] public class GatewaysStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.Runtime)] public class RuntimeStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    public class NoAttributeStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
 }
