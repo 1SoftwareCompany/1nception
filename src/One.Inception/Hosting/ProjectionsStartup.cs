@@ -37,27 +37,38 @@ internal sealed class ProjectionsStartup : IInceptionStartup
 
     public async Task BootstrapAsync()
     {
-        await BootstrapInternalAsync(tenants.Tenants).ConfigureAwait(false);
+        await BootstrapInternalAsync(tenants.Tenants, false).ConfigureAwait(false);
     }
 
     public async Task BootstrapAsync(IEnumerable<string> tenants)
     {
-        await BootstrapInternalAsync(tenants).ConfigureAwait(false);
+        await BootstrapInternalAsync(tenants, true).ConfigureAwait(false);
     }
 
-    private async Task BootstrapInternalAsync(IEnumerable<string> tenants)
+    private async Task BootstrapInternalAsync(IEnumerable<string> tenants, bool isNewTenant)
     {
         if (hostOptions.ProjectionsEnabled == false)
             return;
 
-        List<Task> tenantBootstrapTasks = new List<Task>();
-        foreach (var tenant in tenants)
+        if (isNewTenant == false)
         {
-            string scopedTenant = tenant;
-            tenantBootstrapTasks.Add(BootstrapProjectionsForTenantAsync(scopedTenant));
-        }
+            List<Task> tenantBootstrapTasks = new List<Task>();
+            foreach (var tenant in tenants)
+            {
+                string scopedTenant = tenant;
+                tenantBootstrapTasks.Add(BootstrapProjectionsForTenantAsync(scopedTenant));
+            }
 
-        await Task.WhenAll(tenantBootstrapTasks);
+            await Task.WhenAll(tenantBootstrapTasks);
+        }
+        else // experimental
+        {
+            foreach (var tenant in tenants)
+            {
+                string scopedTenant = tenant;
+                await BootstrapProjectionsForTenantAsync(scopedTenant);
+            }
+        }
     }
 
     private async Task BootstrapProjectionsForTenantAsync(string tenant)
