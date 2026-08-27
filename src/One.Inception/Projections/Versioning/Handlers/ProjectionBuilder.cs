@@ -14,11 +14,11 @@ using System.Threading;
 namespace One.Inception.Projections.Versioning;
 
 [DataContract(Name = "d0dc548e-cbb1-4cb8-861b-e5f6bef68116")]
-public sealed class ProjectionBuilder : Saga, ISystemSaga,
-    IEventHandler<ProjectionVersionRequested>,
-    IEventHandler<ProjectionVersionRequestPaused>,
-    ISagaTimeoutHandler<CreateNewProjectionVersion>,
-    ISagaTimeoutHandler<ProjectionVersionRequestHeartbeat>
+public sealed class ProjectionBuilder : ProcessManager, ISystemProcessManager,
+    IEventHandle<ProjectionVersionRequested>,
+    IEventHandle<ProjectionVersionRequestPaused>,
+    IProcessManagerTimeoutHandle<CreateNewProjectionVersion>,
+    IProcessManagerTimeoutHandle<ProjectionVersionRequestHeartbeat>
 {
     private static readonly Action<ILogger, JobExecutionStatus, Exception> LogProjectionReplayStatus = LoggerMessage.Define<JobExecutionStatus>(LogLevel.Debug, InceptionLogEvent.ProjectionWrite, "Replay projection version {@inception_projection_rebuild}.");
 
@@ -28,14 +28,16 @@ public sealed class ProjectionBuilder : Saga, ISystemSaga,
     private readonly IInceptionJobRunner jobRunner;
     private readonly RebuildProjection_JobFactory fastJobFactory;
     private readonly RebuildProjectionSequentially_JobFactory sequentialJobFactory;
+    private readonly ReplayNotPersistedProjection_Job_JobFactory replayNotPersistedProjection_Job;
 
-    public ProjectionBuilder(IPublisher<ICommand> commandPublisher, IPublisher<IScheduledMessage> timeoutRequestPublisher, IOptionsMonitor<TenantsOptions> monitor, IInceptionJobRunner jobRunner, RebuildProjection_JobFactory fastJobFactory, RebuildProjectionSequentially_JobFactory sequentialJobFactory, ILogger<ProjectionBuilder> logger)
+    public ProjectionBuilder(IPublisher<ICommand> commandPublisher, IPublisher<IScheduledMessage> timeoutRequestPublisher, IOptionsMonitor<TenantsOptions> monitor, IInceptionJobRunner jobRunner, RebuildProjection_JobFactory fastJobFactory, RebuildProjectionSequentially_JobFactory sequentialJobFactory, ILogger<ProjectionBuilder> logger, ReplayNotPersistedProjection_Job_JobFactory replayNotPersistedProjection_Job)
         : base(commandPublisher, timeoutRequestPublisher)
     {
         this.tenants = monitor.CurrentValue;
         this.jobRunner = jobRunner;
         this.fastJobFactory = fastJobFactory;
         this.sequentialJobFactory = sequentialJobFactory;
+        this.replayNotPersistedProjection_Job = replayNotPersistedProjection_Job;
         this.logger = logger;
 
         monitor.OnChange(OptionsForTenantReloaded);
@@ -46,7 +48,7 @@ public sealed class ProjectionBuilder : Saga, ISystemSaga,
         var startRebuildAt = @event.Timebox.RequestStartAt;
         if (startRebuildAt.AddMinutes(5) > DateTime.UtcNow && @event.Timebox.HasExpired == false)
         {
-            RequestTimeout(new CreateNewProjectionVersion(@event, @event.Timebox.RequestStartAt));
+            return RequestTimeoutAsync(new CreateNewProjectionVersion(@event, @event.Timebox.RequestStartAt));
             //RequestTimeout(new ProjectionVersionRequestHeartbeat(@event, @event.Timebox.FinishRequestUntil));
         }
 
@@ -64,50 +66,55 @@ public sealed class ProjectionBuilder : Saga, ISystemSaga,
     {
         IProjection_JobFactory factory;
         var projectionType = version.ProjectionName.GetTypeByContract();
-        if (projectionType.IsAssignableTo(typeof(IAmEventSourcedProjectionFast)) || projectionType.IsAssignableTo(typeof(IProjectionDefinition)))
+
+        bool isUnorderedProjection = projectionType.IsProjectionReplayOrdered() == false;
+        bool isPeristsedProjection = projectionType.IsPersistedProjection();
+
+        if (isPeristsedProjection && isUnorderedProjection)
             factory = fastJobFactory;
-        else
+        else if (isPeristsedProjection && isUnorderedProjection == false)
             factory = sequentialJobFactory;
+        else
+            factory = replayNotPersistedProjection_Job;
 
         IInceptionJob<object> job = factory.CreateJob(version, replayEventsOptions, requestTimebox);
 
         return job;
     }
 
-    public async Task HandleAsync(CreateNewProjectionVersion sagaTimeout)
+    public async Task HandleAsync(CreateNewProjectionVersion processManagersTimeout)
     {
-        if (tenants.Tenants.Contains(sagaTimeout.Tenant) == false)
+        if (tenants.Tenants.Contains(processManagersTimeout.Tenant) == false)
         {
             logger.LogWarning("Tenant is not present in the tenants configuration, and the projection won't be rebuilt.");
             return;
         }
 
-        IInceptionJob<object> job = GetJob(sagaTimeout.ProjectionVersionRequest.Version, sagaTimeout.ProjectionVersionRequest.ReplayEventsOptions, sagaTimeout.ProjectionVersionRequest.Timebox);
+        IInceptionJob<object> job = GetJob(processManagersTimeout.ProjectionVersionRequest.Version, processManagersTimeout.ProjectionVersionRequest.ReplayEventsOptions, processManagersTimeout.ProjectionVersionRequest.Timebox);
         JobExecutionStatus result = await jobRunner.ExecuteAsync(job).ConfigureAwait(false);
         LogProjectionReplayStatus(logger, result, null);
 
         if (result == JobExecutionStatus.Running)
         {
-            RequestTimeout(new CreateNewProjectionVersion(sagaTimeout.ProjectionVersionRequest, DateTime.UtcNow.AddSeconds(60)));
+            await RequestTimeoutAsync(new CreateNewProjectionVersion(processManagersTimeout.ProjectionVersionRequest, DateTime.UtcNow.AddSeconds(31)));
         }
         else if (result == JobExecutionStatus.Failed)
         {
-            var cancel = new CancelProjectionVersionRequest(sagaTimeout.ProjectionVersionRequest.Id, sagaTimeout.ProjectionVersionRequest.Version, "Failed");
-            commandPublisher.Publish(cancel);
+            var cancel = new CancelProjectionVersionRequest(processManagersTimeout.ProjectionVersionRequest.Id, processManagersTimeout.ProjectionVersionRequest.Version, "Failed");
+            await commandPublisher.PublishAsync(cancel);
         }
         else if (result == JobExecutionStatus.Completed)
         {
-            var finalize = new FinalizeProjectionVersionRequest(sagaTimeout.ProjectionVersionRequest.Id, sagaTimeout.ProjectionVersionRequest.Version);
-            commandPublisher.Publish(finalize);
+            var finalize = new FinalizeProjectionVersionRequest(processManagersTimeout.ProjectionVersionRequest.Id, processManagersTimeout.ProjectionVersionRequest.Version);
+            await commandPublisher.PublishAsync(finalize);
         }
     }
 
-    public Task HandleAsync(ProjectionVersionRequestHeartbeat sagaTimeout)
+    public Task HandleAsync(ProjectionVersionRequestHeartbeat processManagerTimeout)
     {
-        var timedout = new TimeoutProjectionVersionRequest(sagaTimeout.ProjectionVersionRequest.Id, sagaTimeout.ProjectionVersionRequest.Version, sagaTimeout.ProjectionVersionRequest.Timebox);
-        commandPublisher.Publish(timedout);
+        var timedout = new TimeoutProjectionVersionRequest(processManagerTimeout.ProjectionVersionRequest.Id, processManagerTimeout.ProjectionVersionRequest.Version, processManagerTimeout.ProjectionVersionRequest.Timebox);
 
-        return Task.CompletedTask;
+        return commandPublisher.PublishAsync(timedout);
     }
 
     private void OptionsForTenantReloaded(TenantsOptions newOptions)
@@ -140,7 +147,7 @@ public sealed class CreateNewProjectionVersion : ISystemScheduledMessage
     public ProjectionVersionRequested ProjectionVersionRequest { get; private set; }
 
     [DataMember(Order = 2)]
-    public DateTime PublishAt { get; set; }
+    public DateTimeOffset PublishAt { get; set; }
 
     [DataMember(Order = 3)]
     public DateTimeOffset Timestamp { get; private set; }
@@ -166,7 +173,7 @@ public sealed class ProjectionVersionRequestHeartbeat : ISystemScheduledMessage
     public ProjectionVersionRequested ProjectionVersionRequest { get; private set; }
 
     [DataMember(Order = 2)]
-    public DateTime PublishAt { get; set; }
+    public DateTimeOffset PublishAt { get; set; }
 
     [DataMember(Order = 2)]
     public DateTimeOffset Timestamp { get; private set; }

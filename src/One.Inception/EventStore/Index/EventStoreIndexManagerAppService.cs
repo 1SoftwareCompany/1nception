@@ -5,9 +5,9 @@ namespace One.Inception.EventStore.Index;
 
 [DataContract(Name = "7c414ffd-f5c6-48ba-9ae8-c0907f006560")]
 public class EventStoreIndexManagerAppService : ApplicationService<EventStoreIndexManager>, ISystemAppService,
-    ICommandHandler<RegisterIndex>,
-    ICommandHandler<RebuildIndexCommand>,
-    ICommandHandler<FinalizeEventStoreIndexRequest>
+    ICommandHandle<RegisterIndex>,
+    ICommandHandle<RebuildIndexCommand>,
+    ICommandHandle<FinalizeEventStoreIndexRequest>
 {
     public EventStoreIndexManagerAppService(IAggregateRepository repository) : base(repository) { }
 

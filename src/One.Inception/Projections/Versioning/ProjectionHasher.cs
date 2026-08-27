@@ -34,7 +34,7 @@ public class ProjectionHasher
             }
             else
             {
-                Type ieventHandler = typeof(IEventHandler<>).GetGenericTypeDefinition();
+                Type ieventHandler = typeof(IEventHandle<>).GetGenericTypeDefinition();
                 List<string> allEvents = projectionType
                     .GetInterfaces().Where(x => x.IsGenericType && x.GetGenericTypeDefinition() == ieventHandler)
                     .Select(x => x.GetGenericArguments().First().GetContractId())

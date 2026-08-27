@@ -1,13 +1,15 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using One.Inception.Hosting.Heartbeat;
+using One.Inception.Multitenancy;
+using One.Inception.Workflow;
+using One.MessageTracing;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using One.Inception.Hosting.Heartbeat;
-using One.Inception.Multitenancy;
-using One.Inception.Workflow;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
+using System.Threading.Tasks;
 
 namespace One.Inception;
 
@@ -77,7 +79,7 @@ public readonly struct PublishResult
 
 public abstract class PublisherHandler
 {
-    protected internal virtual PublishResult PublishInternal(InceptionMessage message)
+    protected internal virtual Task<PublishResult> PublishInternalAsync(InceptionMessage message)
     {
         throw new NotImplementedException();
     }
@@ -85,12 +87,12 @@ public abstract class PublisherHandler
 
 public abstract class DelegatingPublishHandler : PublisherHandler
 {
-    protected internal override PublishResult PublishInternal(InceptionMessage message)
+    protected internal override Task<PublishResult> PublishInternalAsync(InceptionMessage message)
     {
         if (InnerHandler is null)
             throw new InvalidOperationException("The inner publisher handler is not set.");
 
-        return InnerHandler.PublishInternal(message);
+        return InnerHandler.PublishInternalAsync(message);
     }
 
     internal PublisherHandler InnerHandler { get; set; }
@@ -107,7 +109,7 @@ internal class HeadersPublishHandler : DelegatingPublishHandler
         this.boundedContext = boundedContextOptions.Value;
     }
 
-    protected internal override PublishResult PublishInternal(InceptionMessage message)
+    protected internal override async Task<PublishResult> PublishInternalAsync(InceptionMessage message)
     {
         Type payloadType = message.GetMessageType();
 
@@ -131,7 +133,7 @@ internal class HeadersPublishHandler : DelegatingPublishHandler
         message.Headers.Remove("contract_name");
         message.Headers.Add("contract_name", payloadType.GetContractId());
 
-        return new PublishResult(true, false) && base.PublishInternal(message);
+        return new PublishResult(true, false) && await base.PublishInternalAsync(message).ConfigureAwait(false);
     }
 }
 
@@ -149,13 +151,13 @@ internal class LoggingPublishHandler : DelegatingPublishHandler
         this.logger = logger;
     }
 
-    protected internal override PublishResult PublishInternal(InceptionMessage message)
+    protected internal override async Task<PublishResult> PublishInternalAsync(InceptionMessage message)
     {
         using (logger.BeginScope(s => s.AddScope(Log.MessageId, message.Id.ToString())))
         {
             try
             {
-                PublishResult isPublished = base.PublishInternal(message);
+                PublishResult isPublished = await base.PublishInternalAsync(message).ConfigureAwait(false);
 
                 Type messageType = message.GetMessageType();
 
@@ -178,10 +180,37 @@ internal class LoggingPublishHandler : DelegatingPublishHandler
         }
     }
 }
+internal class TracePublishHandler : DelegatingPublishHandler
+{
+    private readonly MessageTracer tracer;
+    private readonly ILogger<TracePublishHandler> logger;
+
+    public TracePublishHandler(MessageTracer tracer, ILogger<TracePublishHandler> logger)
+    {
+        this.tracer = tracer;
+        this.logger = logger;
+    }
+
+    protected internal override async Task<PublishResult> PublishInternalAsync(InceptionMessage message)
+    {
+        try
+        {
+            MessageTraceInfo trace = await tracer.CreateTraceAsync(message.Id.ToString());
+
+            message.Headers.TryAdd(MessageHeader.MessageId, trace.MessageId);
+            message.Headers.TryAdd(MessageHeader.CausationId, trace.CausationId);
+            message.Headers.TryAdd(MessageHeader.CorrelationId, trace.CorrelationId);
+        }
+
+        catch (Exception ex) when (True(() => logger.LogError(ex, "Failed to add trace headers publish message {inception_MessageType}. Message is still published, do not worry... but tracing is lost. {@inception_Message}", message.GetMessageType().Name, message))) { }
+
+        return await base.PublishInternalAsync(message);
+    }
+}
 
 internal class ActivityPublishHandler : DelegatingPublishHandler
 {
-    private const string TelemetryTraceParent = "telemetry_traceparent";
+    private const string TelemetryTraceParent = "traceparent";
     private readonly DiagnosticListener diagnosticListener;
     private readonly ActivitySource activitySource;
     private readonly ILogger<ActivityPublishHandler> logger;
@@ -193,7 +222,7 @@ internal class ActivityPublishHandler : DelegatingPublishHandler
         this.logger = logger;
     }
 
-    protected internal override PublishResult PublishInternal(InceptionMessage message)
+    protected internal override async Task<PublishResult> PublishInternalAsync(InceptionMessage message)
     {
         Activity activity = StartActivity(message);
         if (Activity.Current is not null)
@@ -202,7 +231,7 @@ internal class ActivityPublishHandler : DelegatingPublishHandler
             message.Headers.Add(TelemetryTraceParent, Activity.Current.Id);
         }
 
-        PublishResult published = base.PublishInternal(message);
+        PublishResult published = await base.PublishInternalAsync(message).ConfigureAwait(false);
         StopActivity(activity);
 
         return new PublishResult(true, false) && published;
@@ -277,17 +306,20 @@ public abstract class PublisherBase<TMessage> : PublisherHandler, IPublisher<TMe
         this.handlers = handlers.Cast<DelegatingPublishHandler>();
     }
 
-    public virtual bool Publish(TMessage message, Dictionary<string, string> messageHeaders)
+    public virtual async Task<bool> PublishAsync(TMessage message, Dictionary<string, string> messageHeaders)
     {
         if (messageHeaders is null)
             messageHeaders = new Dictionary<string, string>();
 
         var inceptionMessage = new InceptionMessage(message, messageHeaders);
 
-        var enumerator = handlers.GetEnumerator();
+        IEnumerator<DelegatingPublishHandler> enumerator = handlers.GetEnumerator();
         bool hasHandlers = enumerator.MoveNext();
         if (hasHandlers == false)
-            return PublishInternal(inceptionMessage);
+        {
+            PublishResult publishResult = await PublishInternalAsync(inceptionMessage).ConfigureAwait(false);
+            return publishResult;
+        }
 
         while (hasHandlers)
         {
@@ -303,10 +335,10 @@ public abstract class PublisherBase<TMessage> : PublisherHandler, IPublisher<TMe
             }
         }
 
-        return handlers.First().PublishInternal(inceptionMessage);
+        return await handlers.First().PublishInternalAsync(inceptionMessage).ConfigureAwait(false);
     }
 
-    public virtual bool Publish(byte[] messageRaw, Type messageType, string tenant, Dictionary<string, string> messageHeaders)
+    public virtual async Task<bool> PublishAsync(byte[] messageRaw, Type messageType, string tenant, Dictionary<string, string> messageHeaders)
     {
         if (messageHeaders is null)
             messageHeaders = new Dictionary<string, string>();
@@ -321,7 +353,7 @@ public abstract class PublisherBase<TMessage> : PublisherHandler, IPublisher<TMe
         IEnumerator<DelegatingPublishHandler> enumerator = handlers.GetEnumerator();
         bool hasHandlers = enumerator.MoveNext();
         if (hasHandlers == false)
-            return PublishInternal(inceptionMessage);
+            return await PublishInternalAsync(inceptionMessage).ConfigureAwait(false);
 
         while (hasHandlers)
         {
@@ -337,20 +369,20 @@ public abstract class PublisherBase<TMessage> : PublisherHandler, IPublisher<TMe
             }
         }
 
-        return handlers.First().PublishInternal(inceptionMessage);
+        return await handlers.First().PublishInternalAsync(inceptionMessage).ConfigureAwait(false);
     }
 
-    public virtual bool Publish(TMessage message, DateTime publishAt, Dictionary<string, string> messageHeaders = null)
+    public virtual Task<bool> PublishAsync(TMessage message, DateTimeOffset publishAt, Dictionary<string, string> messageHeaders = null)
     {
         messageHeaders = messageHeaders ?? new Dictionary<string, string>();
-        messageHeaders.Add(MessageHeader.PublishTimestamp, publishAt.ToFileTimeUtc().ToString());
-        return Publish(message, messageHeaders);
+        messageHeaders.Add(MessageHeader.PublishTimestamp, publishAt.DateTime.ToFileTimeUtc().ToString());
+        return PublishAsync(message, messageHeaders);
     }
 
-    public bool Publish(TMessage message, TimeSpan publishAfter, Dictionary<string, string> messageHeaders = null)
+    public Task<bool> PublishAsync(TMessage message, TimeSpan publishAfter, Dictionary<string, string> messageHeaders = null)
     {
         DateTime publishAt = DateTime.UtcNow.Add(publishAfter);
-        return Publish(message, publishAt, messageHeaders);
+        return PublishAsync(message, publishAt, messageHeaders);
     }
 
     private void EnsureValidTenant(string tenant, Dictionary<string, string> messageHeaders)

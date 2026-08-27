@@ -5,11 +5,11 @@ namespace One.Inception.Projections.Versioning;
 
 [DataContract(Name = ContractId)]
 public class ProjectionVersionsHandler : ProjectionDefinition<ProjectionVersionsHandlerState, ProjectionVersionManagerId>, ISystemProjection, INonVersionableProjection,
-    IEventHandler<ProjectionVersionRequested>,
-    IEventHandler<NewProjectionVersionIsNowLive>,
-    IEventHandler<ProjectionVersionRequestCanceled>,
-    IEventHandler<ProjectionVersionRequestTimedout>,
-    IEventHandler<ProjectionVersionRequestPaused>
+    IEventHandle<ProjectionVersionRequested>,
+    IEventHandle<NewProjectionVersionIsNowLive>,
+    IEventHandle<ProjectionVersionRequestCanceled>,
+    IEventHandle<ProjectionVersionRequestTimedout>,
+    IEventHandle<ProjectionVersionRequestPaused>
 {
     public const string ContractId = "f1469a8e-9fc8-47f5-b057-d5394ed33b4c";
 

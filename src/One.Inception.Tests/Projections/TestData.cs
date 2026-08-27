@@ -7,9 +7,9 @@ namespace One.Inception.Tests.Projections;
 
 [DataContract(Name = "05a82e14-3bcd-4e0e-a725-65f3d3a0ee0e")]
 public class TestProjection : ProjectionDefinition<TestProjectionState, TestProjectionId>,
-    IEventHandler<TestEvent1>,
-    IEventHandler<TestEvent2>,
-    IEventHandler<TestEvent3>
+    IEventHandle<TestEvent1>,
+    IEventHandle<TestEvent2>,
+    IEventHandle<TestEvent3>
 {
     public Task HandleAsync(TestEvent1 @event) { return Task.CompletedTask; }
 
@@ -23,9 +23,9 @@ public class TestProjection : ProjectionDefinition<TestProjectionState, TestProj
 
 [DataContract(Name = "05a82e14-3bcd-4e0e-a725-65f3d3a0ee0e")]
 public class TestProjectionShuffled : ProjectionDefinition<TestProjectionState, TestProjectionId>,
-    IEventHandler<TestEvent2>,
-    IEventHandler<TestEvent3>,
-    IEventHandler<TestEvent1>
+    IEventHandle<TestEvent2>,
+    IEventHandle<TestEvent3>,
+    IEventHandle<TestEvent1>
 {
     public Task HandleAsync(TestEvent1 @event) { return Task.CompletedTask; }
 
@@ -39,8 +39,8 @@ public class TestProjectionShuffled : ProjectionDefinition<TestProjectionState, 
 
 [DataContract(Name = "05a82e14-3bcd-4e0e-a725-65f3d3a0ee0e")]
 public class TestProjectionModified : ProjectionDefinition<TestProjectionState, TestProjectionId>,
-    IEventHandler<TestEvent2>,
-    IEventHandler<TestEvent1>
+    IEventHandle<TestEvent2>,
+    IEventHandle<TestEvent1>
 {
     public Task HandleAsync(TestEvent1 @event) { return Task.CompletedTask; }
 
@@ -52,8 +52,8 @@ public class TestProjectionModified : ProjectionDefinition<TestProjectionState, 
 
 [DataContract(Name = "asc")]
 public class TestProjectionHandlersAsc : ProjectionDefinition<TestProjectionState, TestProjectionId>,
-    IEventHandler<A>,
-    IEventHandler<B>
+    IEventHandle<A>,
+    IEventHandle<B>
 {
     public Task HandleAsync(A @event) => Task.CompletedTask;
     public Task HandleAsync(B @event) => Task.CompletedTask;
@@ -61,8 +61,8 @@ public class TestProjectionHandlersAsc : ProjectionDefinition<TestProjectionStat
 
 [DataContract(Name = "desc")]
 public class TestProjectionHandlersDesc : ProjectionDefinition<TestProjectionState, TestProjectionId>,
-    IEventHandler<B>,
-    IEventHandler<A>
+    IEventHandle<B>,
+    IEventHandle<A>
 {
     public Task HandleAsync(B @event) => Task.CompletedTask;
     public Task HandleAsync(A @event) => Task.CompletedTask;

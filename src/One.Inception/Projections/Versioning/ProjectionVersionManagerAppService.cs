@@ -5,13 +5,14 @@ namespace One.Inception.Projections.Versioning;
 
 [DataContract(Name = "28345d27-0ccf-48dc-88dc-2d10bed829cf")]
 public class ProjectionVersionManagerAppService : ApplicationService<ProjectionVersionManager>, ISystemAppService,
-    ICommandHandler<RegisterProjection>,
-    ICommandHandler<NewProjectionVersion>,
-    ICommandHandler<FinalizeProjectionVersionRequest>,
-    ICommandHandler<CancelProjectionVersionRequest>,
-    ICommandHandler<TimeoutProjectionVersionRequest>,
-    ICommandHandler<FixProjectionVersion>,
-    ICommandHandler<PauseProjectionVersion>
+    ICommandHandle<RegisterProjection>,
+    ICommandHandle<NewProjectionVersion>,
+    ICommandHandle<FinalizeProjectionVersionRequest>,
+    ICommandHandle<CancelProjectionVersionRequest>,
+    ICommandHandle<TimeoutProjectionVersionRequest>,
+    ICommandHandle<FixProjectionVersion>,
+    ICommandHandle<PauseProjectionVersion>,
+    ICommandHandle<InitilizeProjection>
 {
     private readonly IProjectionVersioningPolicy projectionVersioningPolicy;
     private readonly IProjectionReader projectionReader;
@@ -38,7 +39,7 @@ public class ProjectionVersionManagerAppService : ApplicationService<ProjectionV
         }
 
         if (result.NotFound)
-            ar = new ProjectionVersionManager(command.Id, command.Hash);
+            ar = new ProjectionVersionManager(command.Id, command.Hash, command.ReplayEventsOptions);
 
         await repository.SaveAsync(ar).ConfigureAwait(false);
     }
@@ -71,6 +72,17 @@ public class ProjectionVersionManagerAppService : ApplicationService<ProjectionV
     public Task HandleAsync(PauseProjectionVersion command)
     {
         return UpdateAsync(command.Id, ar => ar.PauseVersionRequest(command.Version));
+    }
+
+    public async Task HandleAsync(InitilizeProjection command)
+    {
+        ProjectionVersionManager ar = null;
+        ReadResult<ProjectionVersionManager> result = await repository.LoadAsync<ProjectionVersionManager>(command.Id).ConfigureAwait(false);
+        if (result.NotFound)
+        {
+            ar = new ProjectionVersionManager(command.Id, command.Hash, command.ReplayOptions);
+            await repository.SaveAsync(ar).ConfigureAwait(false);
+        }
     }
 
     private async Task<bool> ShouldRebuildMissingSystemProjectionsAsync(ProjectionVersionManagerId projectionId, IProjectionReader projectionReader)

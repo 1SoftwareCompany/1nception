@@ -31,10 +31,10 @@ public static class SubscriberCollectionServiceCollectionExtensions
 
         services.AddSubscribers<IPort>();
         services.AddSubscribers<IGateway>();
-        services.AddSubscribers<ISaga>();
+        services.AddSubscribers<IProcessManager>();
         services.AddSubscribers<ISystemAppService>();
         services.AddSubscribers<ISystemPort>();
-        services.AddSubscribers<ISystemSaga>();
+        services.AddSubscribers<ISystemProcessManager>();
         services.AddSubscribers<ISystemProjection>();
         services.AddSubscribers<IMigrationHandler>();
         services.AddTriggersSubscribers();

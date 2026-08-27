@@ -53,7 +53,6 @@ public class ProjectionsDiscovery : HandlersDiscovery<IProjection>
         yield return new DiscoveredModel(typeof(LatestProjectionVersionFinder), typeof(LatestProjectionVersionFinder), ServiceLifetime.Transient);
 
         yield return new DiscoveredModel(typeof(ProjectionFinderViaReflection), typeof(ProjectionFinderViaReflection), ServiceLifetime.Singleton);
-        yield return new DiscoveredModel(typeof(ProjectionBootstrapper), typeof(ProjectionBootstrapper), ServiceLifetime.Transient);
         yield return new DiscoveredModel(typeof(IProjectionVersionFinder), typeof(ProjectionFinderViaReflection), ServiceLifetime.Transient) { CanAddMultiple = true };
     }
 }

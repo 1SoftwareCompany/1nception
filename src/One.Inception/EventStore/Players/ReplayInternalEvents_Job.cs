@@ -1,28 +1,28 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using One.Inception.Cluster.Job;
-using One.Inception.MessageProcessing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Text;
+using One.Inception.Cluster.Job;
+using One.Inception.MessageProcessing;
 
 namespace One.Inception.EventStore.Players;
 
-public class ReplayPublicEvents_Job : InceptionJob<ReplayPublicEvents_JobData>
+public class ReplayInternalEvents_Job : InceptionJob<ReplayInternalEvents_JobData>
 {
-    private readonly IPublisher<IPublicEvent> publicEventPublisher;
+    private readonly IPublisher<IEvent> eventPublisher;
     private readonly IInceptionContextAccessor contextAccessor;
     private readonly IEventStorePlayer player;
 
-    public ReplayPublicEvents_Job(IPublisher<IPublicEvent> publicEventPublisher, IInceptionContextAccessor contextAccessor, IEventStorePlayer eventStorePlayer, ILogger<ReplayPublicEvents_Job> logger) : base(logger)
+    public ReplayInternalEvents_Job(IPublisher<IEvent> publicEventPublisher, IInceptionContextAccessor contextAccessor, IEventStorePlayer eventStorePlayer, ILogger<ReplayInternalEvents_Job> logger) : base(logger)
     {
-        this.publicEventPublisher = publicEventPublisher;
+        this.eventPublisher = publicEventPublisher;
         this.contextAccessor = contextAccessor;
         this.player = eventStorePlayer;
     }
-    public override string Name { get; set; } = "c0e0f5fc-1f22-4022-96d0-bf02590951d6";
+    public override string Name { get; set; } = "35cfb5dd-f11c-45b5-a508-2b14a3266705";
 
     protected override async Task<JobExecutionStatus> RunJobAsync(IClusterOperations cluster, CancellationToken cancellationToken = default)
     {
@@ -51,7 +51,6 @@ public class ReplayPublicEvents_Job : InceptionJob<ReplayPublicEvents_JobData>
                 //TODO: Document which headers are essential or make another ctor for InceptionMessage with byte[]
                 var headers = new Dictionary<string, string>()
                 {
-                    { MessageHeader.RecipientBoundedContext, Data.RecipientBoundedContext },
                     { MessageHeader.RecipientHandlers, Data.RecipientHandlers },
                     { MessageHeader.PublishTimestamp, DateTime.UtcNow.ToFileTimeUtc().ToString() },
                     { MessageHeader.Tenant, tenant },
@@ -59,7 +58,7 @@ public class ReplayPublicEvents_Job : InceptionJob<ReplayPublicEvents_JobData>
                     { "contract_name", Data.SourceEventTypeId }
                 };
 
-                await publicEventPublisher.PublishAsync(eventRaw.Data, Data.SourceEventTypeId.GetTypeByContract(), tenant, headers).ConfigureAwait(false);
+                await eventPublisher.PublishAsync(eventRaw.Data, Data.SourceEventTypeId.GetTypeByContract(), tenant, headers).ConfigureAwait(false);
 
                 counter++;
             },
@@ -83,20 +82,20 @@ public class ReplayPublicEvents_Job : InceptionJob<ReplayPublicEvents_JobData>
     }
 }
 
-public class ReplayPublicEvents_JobFactory
+public class ReplayInternalEvents_JobFactory
 {
-    private readonly ReplayPublicEvents_Job job;
+    private readonly ReplayInternalEvents_Job job;
     private readonly IInceptionContextAccessor contextAccessor;
     private readonly BoundedContext boundedContext;
 
-    public ReplayPublicEvents_JobFactory(ReplayPublicEvents_Job job, IOptions<BoundedContext> boundedContext, IInceptionContextAccessor contextAccessor)
+    public ReplayInternalEvents_JobFactory(ReplayInternalEvents_Job job, IOptions<BoundedContext> boundedContext, IInceptionContextAccessor contextAccessor)
     {
         this.job = job;
         this.contextAccessor = contextAccessor;
         this.boundedContext = boundedContext.Value;
     }
 
-    public ReplayPublicEvents_Job CreateJob(ReplayPublicEventsRequested signal)
+    public ReplayInternalEvents_Job CreateJob(ReplayInternalEventsRequested signal)
     {
         StringBuilder sb = new StringBuilder($"urn:{boundedContext.Name}:{contextAccessor.Context.Tenant}:{job.Name}:{signal.RecipientBoundedContext}:{signal.RecipientHandlers}:{signal.SourceEventTypeId}:{signal.ReplayOptions.ShouldReplayLastEventOnly}");
 
@@ -105,7 +104,7 @@ public class ReplayPublicEvents_JobFactory
 
         job.Name = sb.ToString();
 
-        job.BuildInitialData(() => new ReplayPublicEvents_JobData()
+        job.BuildInitialData(() => new ReplayInternalEvents_JobData()
         {
             After = signal.ReplayOptions.After,
             Before = signal.ReplayOptions.Before,
@@ -120,9 +119,9 @@ public class ReplayPublicEvents_JobFactory
     }
 }
 
-public class ReplayPublicEvents_JobData : IJobData
+public class ReplayInternalEvents_JobData : IJobData
 {
-    public ReplayPublicEvents_JobData()
+    public ReplayInternalEvents_JobData()
     {
         IsCompleted = false;
         Timestamp = DateTimeOffset.UtcNow;

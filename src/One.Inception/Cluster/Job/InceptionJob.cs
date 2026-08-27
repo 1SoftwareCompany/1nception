@@ -77,7 +77,7 @@ public abstract class InceptionJob<TData> : IInceptionJob<TData>
         catch (Exception ex) when (True(() => logger.LogError(ex, "Error while syncing initial state of a job."))) { }
     }
 
-    private Task<JobExecutionStatus> RunJobWithLoggerAsync(IClusterOperations cluster, CancellationToken cancellationToken = default)
+    private async Task<JobExecutionStatus> RunJobWithLoggerAsync(IClusterOperations cluster, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -85,12 +85,19 @@ public abstract class InceptionJob<TData> : IInceptionJob<TData>
                     .AddScope("inception_job_data", System.Text.Json.JsonSerializer.Serialize<TData>(Data))))
             {
                 logger.LogInformation("A job has started...");
-                return RunJobAsync(cluster, cancellationToken);
+                JobExecutionStatus result = await RunJobAsync(cluster, cancellationToken);
+
+                if (result == JobExecutionStatus.Completed)
+                {
+                    await cluster.DeleteAsync(cancellationToken).ConfigureAwait(false);
+                }
+
+                return result;
             }
         }
         catch (Exception ex) when (True(() => logger.LogError(ex, "Error on RunJobWithLoggerAsync")))
         {
-            return Task.FromResult(JobExecutionStatus.Failed);
+            return JobExecutionStatus.Failed;
         }
     }
 

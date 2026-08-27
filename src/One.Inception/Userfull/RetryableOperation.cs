@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 namespace One.Inception;
@@ -29,53 +30,44 @@ public static class RetryableOperation
     /// </summary>
     public static RetryPolicy DefaultLinearRetryPolicy { get { return defaultLinearRetryPolicy; } }
 
-    public static T TryExecute<T>(Func<T> operation, RetryPolicy retryPolicy, Func<string> getOperationInfo = null)
+    public static async Task<T> TryExecuteAsync<T>(Func<Task<T>> operation, RetryPolicy retryPolicy, Func<string> getOperationInfo = null)
     {
-        var retry = retryPolicy();
-        Exception exception;
+        ShouldRetry retry = retryPolicy();
+        Exception exception = null;
         T operationResult = default(T);
 
         TimeSpan delay;
         for (int i = 0; i > -1; i++)
         {
-            operationResult = InvokeTryExecuteInternal(operation, out exception);
-            if (operationResult is null || operationResult.Equals(default(T)))
+            try
             {
-                if (retry(i, exception, out delay))
-                {
-                    if (logger.IsEnabled(LogLevel.Debug))
-                        logger.LogDebug("Retry {retryCount} after {delay}ms. Operation Info: {operationInfo}", i, delay.TotalMilliseconds, getOperationInfo());
-                    Thread.Sleep(delay);
-                }
-                else
-                {
-                    if (logger.IsEnabled(LogLevel.Debug))
-                        logger.LogDebug("Maximum number of retries has been reached.");
-                    if (exception is null)
-                        exception = new Exception($"Maximum number of retries has been reached.{Environment.NewLine}{getOperationInfo()}");
-                    throw exception;
-                }
+                operationResult = await operation().ConfigureAwait(false);
+            }
+            catch (Exception ex) { exception = ex; }
+
+            if (operationResult is not null || operationResult.Equals(default(T)) == false)
+                break;
+
+            if (retry(i, exception, out delay))
+            {
+                if (logger.IsEnabled(LogLevel.Debug))
+                    logger.LogDebug("Retry {retryCount} after {delay}ms. Operation Info: {operationInfo}", i, delay.TotalMilliseconds, getOperationInfo());
+
+                await Task.Delay(delay).ConfigureAwait(false);
             }
             else
             {
-                break;
+                if (logger.IsEnabled(LogLevel.Debug))
+                    logger.LogDebug("Maximum number of retries has been reached.");
+
+                if (exception is null)
+                    exception = new Exception($"Maximum number of retries has been reached.{Environment.NewLine}{getOperationInfo()}");
+
+                throw exception;
             }
         }
-        return operationResult;
-    }
 
-    private static T InvokeTryExecuteInternal<T>(Func<T> operation, out Exception exception)
-    {
-        exception = null;
-        try
-        {
-            return operation();
-        }
-        catch (Exception ex)
-        {
-            exception = ex;
-            return default(T);
-        }
+        return operationResult;
     }
 
     public class RetryPolicyFactory

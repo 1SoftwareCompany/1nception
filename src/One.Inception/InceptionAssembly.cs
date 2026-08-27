@@ -23,7 +23,7 @@ public interface ISystemTrigger : ITrigger, ISystemHandler { }
 
 public interface ISystemEventStoreIndexHandler : ISystemHandler { }
 
-public interface ISystemSaga : ISaga, ISystemHandler { }
+public interface ISystemProcessManager : IProcessManager, ISystemHandler { }
 
 public interface ISystemMessage : IMessage { }
 

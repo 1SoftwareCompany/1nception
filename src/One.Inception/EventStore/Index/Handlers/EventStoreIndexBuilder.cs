@@ -6,10 +6,10 @@ using One.Inception.Cluster.Job;
 namespace One.Inception.EventStore.Index.Handlers;
 
 [DataContract(Name = "055f2407-6b5a-4f77-92b0-fcae4c8d86a7")]
-public class EventStoreIndexBuilder : Saga, ISystemSaga,
-    IEventHandler<EventStoreIndexRequested>,
-    ISagaTimeoutHandler<RebuildIndexInternal>,
-    ISagaTimeoutHandler<EventStoreIndexRebuildTimedout>
+public class EventStoreIndexBuilder : ProcessManager, ISystemProcessManager,
+    IEventHandle<EventStoreIndexRequested>,
+    IProcessManagerTimeoutHandle<RebuildIndexInternal>,
+    IProcessManagerTimeoutHandle<EventStoreIndexRebuildTimedout>
 {
     private readonly IInceptionJobRunner jobRunner;
     private readonly IRebuildIndex_EventToAggregateRootId_JobFactory jobFactory;
@@ -23,54 +23,52 @@ public class EventStoreIndexBuilder : Saga, ISystemSaga,
         this.messageCounterJobFactory = messageCounterJobFactory;
     }
 
-    public Task HandleAsync(EventStoreIndexRequested @event)
+    public async Task HandleAsync(EventStoreIndexRequested @event)
     {
         var startRebuildAt = @event.Timebox.RequestStartAt;
         if (startRebuildAt.AddMinutes(5) > DateTime.UtcNow && @event.Timebox.HasExpired == false)
         {
-            RequestTimeout(new RebuildIndexInternal(@event, @event.Timebox.RequestStartAt, @event.MaxDegreeOfParallelism));
+            await RequestTimeoutAsync(new RebuildIndexInternal(@event, @event.Timebox.RequestStartAt, @event.MaxDegreeOfParallelism));
             //RequestTimeout(new EventStoreIndexRebuildTimedout(@event, @event.Timebox.FinishRequestUntil));
         }
-
-        return Task.CompletedTask;
     }
 
-    public async Task HandleAsync(RebuildIndexInternal sagaTimeout)
+    public async Task HandleAsync(RebuildIndexInternal processManagerTimeout)
     {
         IInceptionJob<object> job = null;
         // we need to redesign the job factories
-        var theId = sagaTimeout.EventStoreIndexRequest.Id.Id;
+        var theId = processManagerTimeout.EventStoreIndexRequest.Id.Id;
 
         if (theId.Equals(typeof(MessageCounterIndex).GetContractId(), StringComparison.OrdinalIgnoreCase))
         {
-            job = messageCounterJobFactory.CreateJob(sagaTimeout.EventStoreIndexRequest.Timebox);
+            job = messageCounterJobFactory.CreateJob(processManagerTimeout.EventStoreIndexRequest.Timebox);
         }
         else
         {
-            job = jobFactory.CreateJob(sagaTimeout.EventStoreIndexRequest.Timebox, sagaTimeout.MaxDegreeOfParallelism);
+            job = jobFactory.CreateJob(processManagerTimeout.EventStoreIndexRequest.Timebox, processManagerTimeout.MaxDegreeOfParallelism);
         }
 
-        JobExecutionStatus result = await jobRunner.ExecuteAsync(job).ConfigureAwait(false);
+        JobExecutionStatus result = await jobRunner.ExecuteAsync(job);
 
         if (result == JobExecutionStatus.Running)
         {
-            RequestTimeout(new RebuildIndexInternal(sagaTimeout.EventStoreIndexRequest, DateTime.UtcNow.AddSeconds(60), sagaTimeout.MaxDegreeOfParallelism));
+            await RequestTimeoutAsync(new RebuildIndexInternal(processManagerTimeout.EventStoreIndexRequest, DateTime.UtcNow.AddSeconds(60), processManagerTimeout.MaxDegreeOfParallelism));
         }
         else if (result == JobExecutionStatus.Failed)
         {
             // log error
-            RequestTimeout(new RebuildIndexInternal(sagaTimeout.EventStoreIndexRequest, DateTime.UtcNow.AddSeconds(60), sagaTimeout.MaxDegreeOfParallelism));
+            await RequestTimeoutAsync(new RebuildIndexInternal(processManagerTimeout.EventStoreIndexRequest, DateTime.UtcNow.AddSeconds(60), processManagerTimeout.MaxDegreeOfParallelism));
         }
         else if (result == JobExecutionStatus.Completed)
         {
-            var finalize = new FinalizeEventStoreIndexRequest(sagaTimeout.EventStoreIndexRequest.Id);
-            commandPublisher.Publish(finalize);
+            var finalize = new FinalizeEventStoreIndexRequest(processManagerTimeout.EventStoreIndexRequest.Id);
+            await commandPublisher.PublishAsync(finalize);
         }
     }
 
-    public Task HandleAsync(EventStoreIndexRebuildTimedout sagaTimeout)
+    public Task HandleAsync(EventStoreIndexRebuildTimedout processManagerTimeout)
     {
-        //var timedout = new TimeoutProjectionVersionRequest(sagaTimeout.ProjectionVersionRequest.Id, sagaTimeout.ProjectionVersionRequest.Version, sagaTimeout.ProjectionVersionRequest.Timebox);
+        //var timedout = new TimeoutProjectionVersionRequest(processManagerTimeout.ProjectionVersionRequest.Id, processManagerTimeout.ProjectionVersionRequest.Version, processManagerTimeout.ProjectionVersionRequest.Timebox);
         //commandPublisher.Publish(timedout);
         return Task.CompletedTask;
     }
@@ -95,7 +93,7 @@ public sealed class RebuildIndexInternal : ISystemScheduledMessage
     public EventStoreIndexRequested EventStoreIndexRequest { get; private set; }
 
     [DataMember(Order = 2)]
-    public DateTime PublishAt { get; set; }
+    public DateTimeOffset PublishAt { get; set; }
 
     [DataMember(Order = 3)]
     public DateTimeOffset Timestamp { get; private set; }
@@ -124,7 +122,7 @@ public sealed class EventStoreIndexRebuildTimedout : ISystemScheduledMessage
     public EventStoreIndexRequested EventStoreIndexRequest { get; private set; }
 
     [DataMember(Order = 2)]
-    public DateTime PublishAt { get; set; }
+    public DateTimeOffset PublishAt { get; set; }
 
     [DataMember(Order = 2)]
     public DateTimeOffset Timestamp { get; private set; }

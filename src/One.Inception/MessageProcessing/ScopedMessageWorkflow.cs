@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using One.Inception.Workflow;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using One.MessageTracing;
 
 namespace One.Inception.MessageProcessing;
 
@@ -38,7 +39,7 @@ public class ScopedMessageWorkflow : Workflow<HandleContext>
             if (scopes.TryAdd(handleContext, scope) == false)
                 hasScopeError = true;
 
-            var context = contextFactory.Create(tenant ?? handleContext.Message, scope.ServiceProvider);
+            InceptionContext context = contextFactory.Create(tenant ?? handleContext.Message, scope.ServiceProvider);
             foreach (var header in handleContext.Message.Headers)
             {
                 context.Trace.Add(header.Key, header.Value);
@@ -55,6 +56,15 @@ public class ScopedMessageWorkflow : Workflow<HandleContext>
             logger.LogCritical(ErrorMessage);
             throw new Exception(ErrorMessage);
         }
+
+        try
+        {
+            // tracing begins here
+            MessageTracer tracer = handleContext.ServiceProvider.GetRequiredService<MessageTracer>();
+            tracer.Record(handleContext.Message.Id.ToString());
+            // tracing ends here
+        }
+        catch (Exception ex) when (True(() => logger.LogError(ex, "Failed to record trace for {inception_MessageType}. Message is still handled, do not worry... but tracing is lost. {@inception_Message}", handleContext.Message.GetMessageType().Name, handleContext.Message))) { }
 
         return base.CreateExecutionContext(handleContext);
     }

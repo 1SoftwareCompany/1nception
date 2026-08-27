@@ -25,4 +25,18 @@ public class LatestProjectionVersionFinder
                 yield return versionGroup.First();
         }
     }
+
+    public IEnumerable<ProjectionVersion> GetProjectionVersionsToJustInitialize()
+    {
+        var allPossibleVersions = projectionFinders.SelectMany(finder => finder.GetProjectionVersionsToInitialize()).GroupBy(ver => ver.ProjectionName);
+
+        foreach (var versionGroup in allPossibleVersions)
+        {
+            ProjectionVersion lastLiveVersion = versionGroup.Where(ver => ver.Status == ProjectionStatus.Live).MaxBy(ver => ver.Revision);
+            if (lastLiveVersion is not null)
+                yield return lastLiveVersion;
+            else
+                yield return versionGroup.First();
+        }
+    }
 }

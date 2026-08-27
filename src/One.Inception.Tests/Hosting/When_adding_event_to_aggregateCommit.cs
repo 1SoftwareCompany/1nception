@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System;
+using System.Threading.Tasks;
+
 
 namespace One.Inception.Migrations;
 
@@ -34,7 +36,7 @@ public class When_inception_startups_are_executed
         typeof(TestAssemblyScanner.ConfigurationStartup),
         typeof(TestAssemblyScanner.AggregatesStartup),
         typeof(TestAssemblyScanner.PortsStartup),
-        typeof(TestAssemblyScanner.SagasStartup),
+        typeof(TestAssemblyScanner.ProcessManagersStartup),
         typeof(TestAssemblyScanner.SecondProjectionsStartup),
         typeof(TestAssemblyScanner.ProjectionsStartup),
         typeof(TestAssemblyScanner.GatewaysStartup),
@@ -47,7 +49,7 @@ public class TestAssemblyScanner : IAssemblyScanner
 {
     public IEnumerable<Type> Scan()
     {
-        yield return typeof(SagasStartup);
+        yield return typeof(ProcessManagersStartup);
         yield return typeof(GatewaysStartup);
         yield return typeof(SecondProjectionsStartup);
         yield return typeof(AggregatesStartup);
@@ -60,15 +62,15 @@ public class TestAssemblyScanner : IAssemblyScanner
         yield return typeof(PortsStartup);
     }
 
-    [InceptionStartup(Bootstraps.Environment)] public class EnvironmentStartup : IInceptionStartup { public void Bootstrap() { } }
-    [InceptionStartup(Bootstraps.ExternalResource)] public class ExternalResourceStartup : IInceptionStartup { public void Bootstrap() { } }
-    [InceptionStartup(Bootstraps.Configuration)] public class ConfigurationStartup : IInceptionStartup { public void Bootstrap() { } }
-    [InceptionStartup(Bootstraps.Aggregates)] public class AggregatesStartup : IInceptionStartup { public void Bootstrap() { } }
-    [InceptionStartup(Bootstraps.Ports)] public class PortsStartup : IInceptionStartup { public void Bootstrap() { } }
-    [InceptionStartup(Bootstraps.Sagas)] public class SagasStartup : IInceptionStartup { public void Bootstrap() { } }
-    [InceptionStartup(Bootstraps.Projections)] public class ProjectionsStartup : IInceptionStartup { public void Bootstrap() { } }
-    [InceptionStartup(Bootstraps.Projections)] public class SecondProjectionsStartup : IInceptionStartup { public void Bootstrap() { } }
-    [InceptionStartup(Bootstraps.Gateways)] public class GatewaysStartup : IInceptionStartup { public void Bootstrap() { } }
-    [InceptionStartup(Bootstraps.Runtime)] public class RuntimeStartup : IInceptionStartup { public void Bootstrap() { } }
-    public class NoAttributeStartup : IInceptionStartup { public void Bootstrap() { } }
+    [InceptionStartup(Bootstraps.Environment)] public class EnvironmentStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.ExternalResource)] public class ExternalResourceStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.Configuration)] public class ConfigurationStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.Aggregates)] public class AggregatesStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.Ports)] public class PortsStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.ProcessManagers)] public class ProcessManagersStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.Projections)] public class ProjectionsStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.Projections)] public class SecondProjectionsStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.Gateways)] public class GatewaysStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    [InceptionStartup(Bootstraps.Runtime)] public class RuntimeStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
+    public class NoAttributeStartup : IInceptionStartup { public Task BootstrapAsync() { return Task.CompletedTask; } public Task BootstrapAsync(IEnumerable<string> tenants) { return Task.CompletedTask; } }
 }

@@ -8,11 +8,10 @@ public class ProjectionVersionManager : AggregateRoot<ProjectionVersionManagerSt
 {
     ProjectionVersionManager() { }
 
-    public ProjectionVersionManager(ProjectionVersionManagerId id, string hash)
+    public ProjectionVersionManager(ProjectionVersionManagerId id, string hash, ReplayEventsOptions options)
     {
         string projectionName = id.Id;
         var initialVersion = new ProjectionVersion(projectionName, ProjectionStatus.New, 1, hash);
-        var options = new ReplayEventsOptions();
         var timebox = new VersionRequestTimebox(DateTime.UtcNow);
         RequestVersion(id, initialVersion, options, timebox);
     }
@@ -92,7 +91,7 @@ public class ProjectionVersionManager : AggregateRoot<ProjectionVersionManagerSt
     public void VersionRequestTimedout(ProjectionVersion version, VersionRequestTimebox timebox)
     {
         // TODO: check if the timebox really has expired LOL :), Believe me, do it
-        // Ask the SAGA if this is for real??
+        // Ask the ProcessManager if this is for real??
         bool foundVersion = state.Versions.Contains(version);
         if (foundVersion == false) return;
 

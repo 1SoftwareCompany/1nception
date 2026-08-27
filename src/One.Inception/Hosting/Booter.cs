@@ -1,10 +1,12 @@
-﻿using One.Inception.MessageProcessing;
-using One.Inception.Multitenancy;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System;
-using System.Collections.Generic;
+using One.Inception.MessageProcessing;
+using One.Inception.Multitenancy;
 
 namespace One.Inception;
 
@@ -20,10 +22,10 @@ public sealed class Booter
         this.tenantOptions = monitor.CurrentValue;
         this.logger = logger;
 
-        monitor.OnChange(OnTenantsOptionsChanged);
+        monitor.OnChange(async (newOptions) => await OnTenantsOptionsChanged(newOptions).ConfigureAwait(false));
     }
 
-    public void BootstrapInception()
+    public async Task BootstrapInceptionAsync()
     {
         var scanner = new StartupScanner(new DefaulAssemblyScanner());
         IEnumerable<Type> startups = scanner.Scan();
@@ -31,31 +33,67 @@ public sealed class Booter
         foreach (var startupType in startups)
         {
             IInceptionStartup startup = (IInceptionStartup)serviceProvider.GetRequiredService(startupType);
-            startup.Bootstrap();
+            await startup.BootstrapAsync().ConfigureAwait(false);
         }
 
         IEnumerable<Type> tenantStartups = scanner.ScanForTenantStartups();
-        foreach (var tenantStartupType in tenantStartups)
+        foreach (string tenant in tenantOptions.Tenants)
         {
-            foreach (string tenant in tenantOptions.Tenants)
+            using (var scopedServiceProvider = serviceProvider.CreateScope())
             {
-                using (var scopedServiceProvider = serviceProvider.CreateScope())
-                {
-                    DefaultContextFactory contextFactory = scopedServiceProvider.ServiceProvider.GetRequiredService<DefaultContextFactory>();
-                    InceptionContext context = contextFactory.Create(tenant, scopedServiceProvider.ServiceProvider);
+                DefaultContextFactory contextFactory = scopedServiceProvider.ServiceProvider.GetRequiredService<DefaultContextFactory>();
+                InceptionContext context = contextFactory.Create(tenant, scopedServiceProvider.ServiceProvider);
 
+                foreach (var tenantStartupType in tenantStartups)
+                {
                     ITenantStartup tenantStartUp = (ITenantStartup)context.ServiceProvider.GetRequiredService(tenantStartupType);
-                    tenantStartUp.Bootstrap();
+                    await tenantStartUp.BootstrapAsync().ConfigureAwait(false);
                 }
             }
         }
     }
 
-    private void OnTenantsOptionsChanged(TenantsOptions newOptions)
+    private async Task OnTenantsOptionsChanged(TenantsOptions newOptions)
     {
-        if (logger.IsEnabled(LogLevel.Debug))
-            logger.LogDebug("tenants options re-loaded with {@options}", newOptions);
+        if (tenantOptions.Tenants.SequenceEqual(newOptions.Tenants) == false) // Check for difference between tenants and newOptions
+        {
+            if (logger.IsEnabled(LogLevel.Debug))
+                logger.LogDebug("tenant options re-loaded with {@options}", newOptions);
 
-        tenantOptions = newOptions;
+            // Find the difference between the old and new tenants
+            // and bootstrap the new tenants
+            var newTenants = newOptions.Tenants.Except(tenantOptions.Tenants);
+            await BootstrapNewlyStartedTenantsAsync(newTenants).ConfigureAwait(false);
+
+            tenantOptions = newOptions;
+        }
+    }
+
+    private async Task BootstrapNewlyStartedTenantsAsync(IEnumerable<string> newTenants)
+    {
+        var scanner = new StartupScanner(new DefaulAssemblyScanner());
+        IEnumerable<Type> startups = scanner.Scan();
+
+        foreach (var startupType in startups)
+        {
+            IInceptionStartup startup = (IInceptionStartup)serviceProvider.GetRequiredService(startupType);
+            await startup.BootstrapAsync(newTenants).ConfigureAwait(false);
+        }
+
+        IEnumerable<Type> tenantStartups = scanner.ScanForTenantStartups();
+        foreach (string tenant in newTenants)
+        {
+            using (var scopedServiceProvider = serviceProvider.CreateScope())
+            {
+                DefaultContextFactory contextFactory = scopedServiceProvider.ServiceProvider.GetRequiredService<DefaultContextFactory>();
+                InceptionContext context = contextFactory.Create(tenant, scopedServiceProvider.ServiceProvider);
+
+                foreach (var tenantStartupType in tenantStartups)
+                {
+                    ITenantStartup tenantStartUp = (ITenantStartup)context.ServiceProvider.GetRequiredService(tenantStartupType);
+                    await tenantStartUp.BootstrapAsync().ConfigureAwait(false);
+                }
+            }
+        }
     }
 }

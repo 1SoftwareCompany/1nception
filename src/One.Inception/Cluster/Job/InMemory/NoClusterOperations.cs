@@ -14,4 +14,9 @@ public class NoClusterOperations : IClusterOperations
     {
         return Task.FromResult<TData>(data);
     }
+
+    public Task<bool> DeleteAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(false);
+    }
 }
