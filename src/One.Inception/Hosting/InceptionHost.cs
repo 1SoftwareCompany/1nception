@@ -34,6 +34,7 @@ public sealed class InceptionHost : IInceptionHost
     private readonly IConsumer<ISystemTrigger> systemTriggers;
     private readonly IConsumer<ISystemProjection> systemProjections;
     private readonly IConsumer<IMigrationHandler> migrations;
+    private readonly IConsumer<INodeBroadcast> nodeBroadcasts;
     private readonly IRpcHost rpcHost;
     private readonly JobManager jobManager;
     private readonly IServiceProvider serviceProvider;
@@ -55,6 +56,7 @@ public sealed class InceptionHost : IInceptionHost
         IConsumer<ISystemTrigger> systemTriggers,
         IConsumer<ISystemProjection> systemProjections,
         IConsumer<IMigrationHandler> migrations,
+        IConsumer<INodeBroadcast> nodeBroadcasts,
         IOptionsMonitor<InceptionHostOptions> hostOptions,
         IServiceProvider serviceProvider,
         IRpcHost rpcHost,
@@ -75,6 +77,7 @@ public sealed class InceptionHost : IInceptionHost
         this.systemTriggers = systemTriggers;
         this.systemProjections = systemProjections;
         this.migrations = migrations;
+        this.nodeBroadcasts = nodeBroadcasts;
         this.serviceProvider = serviceProvider;
         this.rpcHost = rpcHost;
         this.jobManager = jobManager;
@@ -114,6 +117,7 @@ public sealed class InceptionHost : IInceptionHost
             if (hostOptions.GatewaysEnabled) await gateways.StartAsync().ConfigureAwait(false);
             if (hostOptions.TriggersEnabled) await triggers.StartAsync().ConfigureAwait(false);
             if (hostOptions.MigrationsEnabled) await migrations.StartAsync().ConfigureAwait(false);
+            if (hostOptions.NodeBroadcastEnabled) await nodeBroadcasts.StartAsync().ConfigureAwait(false);
 
             if (hostOptions.RpcApiEnabled)
             {
@@ -141,6 +145,7 @@ public sealed class InceptionHost : IInceptionHost
             if (hostOptions.GatewaysEnabled) stopTasks.Add(gateways.StopAsync());
             if (hostOptions.TriggersEnabled) stopTasks.Add(triggers.StopAsync());
             if (hostOptions.MigrationsEnabled) stopTasks.Add(migrations.StopAsync());
+            if (hostOptions.NodeBroadcastEnabled) stopTasks.Add(nodeBroadcasts.StopAsync());
 
             if (hostOptions.SystemServicesEnabled)
             {
@@ -195,6 +200,7 @@ public sealed class InceptionHost : IInceptionHost
             if (oldOptions.GatewaysEnabled == false && newOptions.GatewaysEnabled == true) gateways.StartAsync();
             if (oldOptions.TriggersEnabled == false && newOptions.TriggersEnabled == true) triggers.StartAsync();
             if (oldOptions.RpcApiEnabled == false && newOptions.RpcApiEnabled == true) rpcHost.StartAsync();
+            if (oldOptions.NodeBroadcastEnabled == false && newOptions.NodeBroadcastEnabled == true) nodeBroadcasts.StartAsync();
         }
         catch (Exception ex)
         {
@@ -214,6 +220,7 @@ public sealed class InceptionHost : IInceptionHost
             if (oldOptions.GatewaysEnabled == true && newOptions.GatewaysEnabled == false) gateways.StopAsync();
             if (oldOptions.TriggersEnabled == true && newOptions.TriggersEnabled == false) triggers.StopAsync();
             if (oldOptions.RpcApiEnabled == true && newOptions.RpcApiEnabled == false) rpcHost.StopAsync();
+            if (oldOptions.NodeBroadcastEnabled == true && newOptions.NodeBroadcastEnabled == false) nodeBroadcasts.StopAsync();
         }
         catch (Exception ex)
         {
