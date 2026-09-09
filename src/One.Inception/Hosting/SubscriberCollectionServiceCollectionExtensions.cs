@@ -37,6 +37,8 @@ public static class SubscriberCollectionServiceCollectionExtensions
         services.AddSubscribers<ISystemProcessManager>();
         services.AddSubscribers<ISystemProjection>();
         services.AddSubscribers<IMigrationHandler>();
+        services.AddSubscribers<INodeBroadcast>();
+
         services.AddTriggersSubscribers();
 
         services.AddEventStoreIndexSubscribers();
