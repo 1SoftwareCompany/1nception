@@ -195,7 +195,14 @@ internal class TracePublishHandler : DelegatingPublishHandler
     {
         try
         {
-            MessageTraceInfo trace = await tracer.CreateTraceAsync(message.Id.ToString());
+            string traceId = string.Empty;
+
+            if (message.Payload is not null)
+                traceId = message.Payload.GetOrCreateMessageId();
+            else
+                traceId = message.Id.ToString();
+
+            MessageTraceInfo trace = await tracer.CreateTraceAsync(traceId);
 
             message.Headers.TryAdd(MessageHeader.MessageId, trace.MessageId);
             message.Headers.TryAdd(MessageHeader.CausationId, trace.CausationId);
@@ -207,6 +214,30 @@ internal class TracePublishHandler : DelegatingPublishHandler
         return await base.PublishInternalAsync(message);
     }
 }
+
+internal class MessageIdHandler : DelegatingPublishHandler
+{
+    private readonly ILogger<MessageIdHandler> logger;
+
+    public MessageIdHandler(ILogger<MessageIdHandler> logger)
+    {
+        this.logger = logger;
+    }
+
+    protected internal override async Task<PublishResult> PublishInternalAsync(InceptionMessage message)
+    {
+        try
+        {
+            if (message.Payload is not null)
+                message.Payload.GetOrCreateMessageId();
+        }
+
+        catch (Exception ex) when (True(() => logger.LogError(ex, "Failed to get or create message id for {inception_MessageType}. This MIGHT not be fatal if the message type is not persisted. {@inception_Message}", message.GetMessageType().Name, message))) { }
+
+        return await base.PublishInternalAsync(message);
+    }
+}
+
 
 internal class ActivityPublishHandler : DelegatingPublishHandler
 {

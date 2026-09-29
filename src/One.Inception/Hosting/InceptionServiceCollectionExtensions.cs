@@ -40,6 +40,7 @@ public static class InceptionServiceCollectionExtensions
         services.AddDangerZone();
         services.AddRetryStrategyOptions();
         services.AddInceptionMessageTracer();
+        services.AddOptions<AddMessageIdPlayerPerTenantOptions, AddMessageIdPlayerOptionsProvider>();
 
         var discoveryFinder = new DiscoveryScanner();
         var discoveryContext = new DiscoveryContext(AssemblyLoader.Assemblies.Values, provider.Configuration);
