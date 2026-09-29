@@ -34,6 +34,7 @@ public sealed class HeartbeatService : BackgroundService
                 _logger.LogInformation("HeartbeatService is working.");
 
             var heartbeat = Services.GetRequiredService<IHeartbeat>();
+
             return heartbeat.StartBeatingAsync(stoppingToken);
         }
         catch (Exception ex) when (True(() => _logger.LogError("Failed to send heartbeat.")))

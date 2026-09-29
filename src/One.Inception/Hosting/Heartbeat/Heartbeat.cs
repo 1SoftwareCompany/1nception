@@ -14,6 +14,7 @@ public class Heartbeat : IHeartbeat
     private readonly IPublisher<ISignal> publisher;
     private readonly BoundedContext boundedContext;
     private readonly ILogger<Heartbeat> logger;
+    private List<string> configuredTenants;
 
     private const string TTL = "5000";
 
@@ -24,9 +25,12 @@ public class Heartbeat : IHeartbeat
     {
         this.publisher = publisher;
         this.boundedContext = boundedContext.CurrentValue;
-        tenants = tenantsOptions.CurrentValue;
-        options = heartbeatOptions.CurrentValue;
         this.logger = logger;
+
+        tenants = tenantsOptions.CurrentValue;
+        configuredTenants = tenants.Tenants.ToList();
+
+        options = heartbeatOptions.CurrentValue;
 
         heartbeatOptions.OnChange(OnHeartbeatOptionsChanged);
         tenantsOptions.OnChange(OnTenantsOptionsChanged);
@@ -38,10 +42,13 @@ public class Heartbeat : IHeartbeat
         {
             try
             {
-                Dictionary<string, string> heartbeatHeaders = new Dictionary<string, string>() { { MessageHeader.TTL, TTL } };
-                var signal = new HeartbeatSignal(boundedContext.Name, tenants.Tenants.ToList());
-                await publisher.PublishAsync(signal, heartbeatHeaders).ConfigureAwait(false);
+                if (options.Enabled)
+                {
+                    Dictionary<string, string> heartbeatHeaders = new Dictionary<string, string>() { { MessageHeader.TTL, TTL } };
+                    var signal = new HeartbeatSignal(boundedContext.Name, configuredTenants);
+                    await publisher.PublishAsync(signal, heartbeatHeaders).ConfigureAwait(false);
 
+                }
                 await Task.Delay(TimeSpan.FromSeconds(options.IntervalInSeconds), stoppingToken);
             }
             catch (Exception ex) when (ex is TaskCanceledException or ObjectDisposedException)
@@ -58,7 +65,7 @@ public class Heartbeat : IHeartbeat
     private void OnHeartbeatOptionsChanged(HeartbeatOptions newOptions)
     {
         if (logger.IsEnabled(LogLevel.Debug))
-            logger.LogDebug("Heartbeat options re-loaded with {@options}", newOptions);
+            logger.LogDebug($"{nameof(HeartbeatOptions)} re-loaded with {@options}", newOptions);
 
         options = newOptions;
     }
@@ -66,8 +73,9 @@ public class Heartbeat : IHeartbeat
     private void OnTenantsOptionsChanged(TenantsOptions newOptions)
     {
         if (logger.IsEnabled(LogLevel.Debug))
-            logger.LogDebug("tenants options re-loaded with {@options}", newOptions);
+            logger.LogDebug($"{nameof(TenantsOptions)} re-loaded with {@options}", newOptions);
 
         tenants = newOptions;
+        configuredTenants = tenants.Tenants.ToList();
     }
 }

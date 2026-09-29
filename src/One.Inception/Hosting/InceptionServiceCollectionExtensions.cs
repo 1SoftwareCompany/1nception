@@ -64,7 +64,7 @@ public static class InceptionServiceCollectionExtensions
 
     internal static IServiceCollection AddHeartbeat(this IServiceCollection services)
     {
-        services.AddOptions<HeartbeatOptions, HeartbeaOptionsProvider>();
+        services.AddOptions<HeartbeatOptions, HeartbeatOptionsProvider>();
         services.AddSingleton<IHeartbeat, Heartbeat>();
         services.AddHostedService<HeartbeatService>();
 
