@@ -7,6 +7,8 @@ using One.Inception.MessageProcessing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using System.Text.Unicode;
 using System.Threading.Tasks;
 
 namespace One.Inception.AutoUpdates
@@ -19,6 +21,7 @@ namespace One.Inception.AutoUpdates
         private readonly ISerializer serializer;
         private readonly AddMessageIdPlayerPerTenantOptions options;
         private readonly ILogger<AddMessageIdToAllEventsAutoUpdate> logger;
+        static readonly byte[] MessageIdMarker = Encoding.UTF8.GetBytes("\"messageId\":");
 
 
         public AddMessageIdToAllEventsAutoUpdate(IEventStorePlayer player, IEventStore store, IInceptionContextAccessor inceptionContextAccessor, ISerializer serializer, IOptionsMonitor<AddMessageIdPlayerPerTenantOptions> monitor, ILogger<AddMessageIdToAllEventsAutoUpdate> logger)
@@ -56,14 +59,24 @@ namespace One.Inception.AutoUpdates
                             foreach (var current in commit.Events)
                             {
                                 IMessage deserialized = serializer.DeserializeFromBytes<IMessage>(current.Data); // ? search for "messageId": dyrectly? in the bytes of the message
-                                if (MessageIds.Get(deserialized) is not null)
+
+                                string theId = MessageIds.Get(deserialized);
+                                if (string.IsNullOrEmpty(theId) == false)
                                 {
+                                    logger.LogInformation($"Event with id {Encoding.UTF8.GetString(current.AggregateRootId.Span)} is already migrated?!. MessageId: {theId}");
                                     continue;
                                 }
                                 else
                                 {
-                                    deserialized.GetOrCreateMessageId();
+                                    var id = deserialized.GetOrCreateMessageId();
+                                    logger.LogInformation($"Create messageId {id} for Event with id {Encoding.UTF8.GetString(current.AggregateRootId.Span)}.");
+
                                     byte[] updated = serializer.SerializeToBytes(deserialized);
+
+                                    if (updated.IndexOf(MessageIdMarker) < 0)
+                                    {
+                                        throw new Exception($"Something is wrong.. MessageId is missing in data - {id}, when it should be here supposedly... Serialized event data: {Encoding.UTF8.GetString(updated)}.");
+                                    }
 
                                     var newEvent = new AggregateEventRaw(current.AggregateRootId, updated, current.Revision, current.Position, current.Timestamp);
                                     var append = store.AppendAsync(newEvent);
