@@ -6,7 +6,6 @@ using One.Inception.EventStore;
 using One.Inception.MessageProcessing;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -20,6 +19,7 @@ namespace One.Inception.AutoUpdates
         private readonly ISerializer serializer;
         private readonly AddMessageIdPlayerPerTenantOptions options;
         private readonly ILogger<AddMessageIdToAllEventsAutoUpdate> logger;
+
 
         public AddMessageIdToAllEventsAutoUpdate(IEventStorePlayer player, IEventStore store, IInceptionContextAccessor inceptionContextAccessor, ISerializer serializer, IOptionsMonitor<AddMessageIdPlayerPerTenantOptions> monitor, ILogger<AddMessageIdToAllEventsAutoUpdate> logger)
         {
@@ -55,10 +55,10 @@ namespace One.Inception.AutoUpdates
 
                             foreach (var current in commit.Events)
                             {
-                                IMessage deserialized = serializer.DeserializeFromBytes<IMessage>(current.Data);
+                                IMessage deserialized = serializer.DeserializeFromBytes<IMessage>(current.Data); // ? search for "messageId": dyrectly? in the bytes of the message
                                 if (MessageIds.Get(deserialized) is not null)
                                 {
-                                    return;
+                                    continue;
                                 }
                                 else
                                 {
