@@ -47,6 +47,11 @@ namespace One.Inception.AutoUpdates
                             foreach (var current in commit.Events)
                             {
                                 IMessage deserialized = serializer.DeserializeFromBytes<IMessage>(current.Data); // ? search for "messageId": dyrectly? in the bytes of the message
+                                if (deserialized is null)
+                                {
+                                    logger.LogError($"Event with id {Encoding.UTF8.GetString(current.AggregateRootId.Span)} can not be deserialized. Data: {Encoding.UTF8.GetString(current.Data)}");
+                                    continue;
+                                }
 
                                 string theId = MessageIds.Get(deserialized);
                                 if (string.IsNullOrEmpty(theId) == false)
@@ -63,6 +68,12 @@ namespace One.Inception.AutoUpdates
                                         logger.LogTrace($"Create messageId {id} for Event with id {Encoding.UTF8.GetString(current.AggregateRootId.Span)}.");
 
                                     byte[] updated = serializer.SerializeToBytes(deserialized);
+
+                                    if (updated is null)
+                                    {
+                                        logger.LogError($"Event with id {Encoding.UTF8.GetString(current.AggregateRootId.Span)} can not be serialized with messageId {id}. Data: {Encoding.UTF8.GetString(current.Data)}");
+                                        continue;
+                                    }
 
                                     if (updated.IndexOf(MessageIdMarker) < 0)
                                     {
