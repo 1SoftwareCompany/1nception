@@ -14,6 +14,7 @@ public class InceptionHostOptions
     public bool SystemServicesEnabled { get; set; } = true;
     public bool RpcApiEnabled { get; set; } = false;
     public bool NodeBroadcastEnabled { get; set; } = true;
+    public bool AutoUpdatesEnabled { get; set; } = true;
 }
 
 public class InceptionHostOptionsProvider : InceptionOptionsProviderBase<InceptionHostOptions>

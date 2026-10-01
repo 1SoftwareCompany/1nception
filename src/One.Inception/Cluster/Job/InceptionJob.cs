@@ -45,7 +45,7 @@ public abstract class InceptionJob<TData> : IInceptionJob<TData>
         {
             using (logger.BeginScope(s => s.AddScope("inception_job_name", Name)))
             {
-                logger.LogInformation("Initializing job...");
+                logger.LogInformation($"Initializing job {Name}...");
 
                 await SyncInitialStateAsync(cluster, cancellationToken).ConfigureAwait(false);
                 return await RunJobWithLoggerAsync(cluster, cancellationToken).ConfigureAwait(false);

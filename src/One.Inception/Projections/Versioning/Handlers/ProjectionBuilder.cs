@@ -9,7 +9,6 @@ using One.Inception.Projections.Rebuilding;
 using One.Inception.Workflow;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Threading;
 
 namespace One.Inception.Projections.Versioning;
 
