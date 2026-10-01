@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using One.Inception.EventStore;
 using One.Inception.MessageProcessing;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.Unicode;
@@ -50,13 +51,16 @@ namespace One.Inception.AutoUpdates
                                 string theId = MessageIds.Get(deserialized);
                                 if (string.IsNullOrEmpty(theId) == false)
                                 {
-                                    logger.LogInformation($"Event with id {Encoding.UTF8.GetString(current.AggregateRootId.Span)} is already migrated?!. MessageId: {theId}");
+                                    if (logger.IsEnabled(LogLevel.Trace))
+                                        logger.LogTrace($"Event with id {Encoding.UTF8.GetString(current.AggregateRootId.Span)} is already migrated?!. MessageId: {theId}");
+
                                     continue;
                                 }
                                 else
                                 {
                                     var id = deserialized.GetOrCreateMessageId();
-                                    logger.LogInformation($"Create messageId {id} for Event with id {Encoding.UTF8.GetString(current.AggregateRootId.Span)}.");
+                                    if (logger.IsEnabled(LogLevel.Trace))
+                                        logger.LogTrace($"Create messageId {id} for Event with id {Encoding.UTF8.GetString(current.AggregateRootId.Span)}.");
 
                                     byte[] updated = serializer.SerializeToBytes(deserialized);
 
