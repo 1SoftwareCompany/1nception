@@ -1,14 +1,15 @@
-﻿using System;
-using System.Linq;
-using System.Runtime.Serialization;
-using System.Threading.Tasks;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using One.Inception.Cluster.Job;
+using One.Inception.EventStore.Index.Handlers;
 using One.Inception.EventStore.Players;
 using One.Inception.Multitenancy;
 using One.Inception.Projections.Rebuilding;
 using One.Inception.Workflow;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
+using System;
+using System.Linq;
+using System.Runtime.Serialization;
+using System.Threading.Tasks;
 
 namespace One.Inception.Projections.Versioning;
 
@@ -95,7 +96,15 @@ public sealed class ProjectionBuilder : ProcessManager, ISystemProcessManager,
 
         if (result == JobExecutionStatus.Running)
         {
-            await RequestTimeoutAsync(new CreateNewProjectionVersion(processManagersTimeout.ProjectionVersionRequest, DateTime.UtcNow.AddSeconds(31)));
+            DateTime rescheduleFor = DateTime.UtcNow.AddSeconds(31);
+            if (processManagersTimeout.ProjectionVersionRequest.Version.ProjectionName == EventStoreIndexStatus.ContractId)
+            {
+                // The EventStoreIndexStatus is a special projection that is used to track the state of the event store index.
+                // Therefore, we need to reschedule the timeout for this projection to be sooner than the default 31 seconds.
+                rescheduleFor = DateTime.UtcNow;
+            }
+
+            await RequestTimeoutAsync(new CreateNewProjectionVersion(processManagersTimeout.ProjectionVersionRequest, rescheduleFor));
         }
         else if (result == JobExecutionStatus.Failed)
         {
