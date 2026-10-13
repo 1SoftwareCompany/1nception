@@ -200,7 +200,7 @@ public sealed class InceptionHost : IInceptionHost
             if (oldOptions.GatewaysEnabled == false && newOptions.GatewaysEnabled == true) gateways.StartAsync();
             if (oldOptions.TriggersEnabled == false && newOptions.TriggersEnabled == true) triggers.StartAsync();
             if (oldOptions.RpcApiEnabled == false && newOptions.RpcApiEnabled == true) rpcHost.StartAsync();
-            if (oldOptions.NodeBroadcastEnabled == false && newOptions.NodeBroadcastEnabled == true) nodeBroadcasts.StartAsync();
+            //if (oldOptions.NodeBroadcastEnabled == false && newOptions.NodeBroadcastEnabled == true) nodeBroadcasts.StartAsync(); // Disabled until implemented. The node broadcast consumers must create their queues on startup, as the queues are deleted when the feature is disabled.
         }
         catch (Exception ex)
         {
@@ -220,7 +220,7 @@ public sealed class InceptionHost : IInceptionHost
             if (oldOptions.GatewaysEnabled == true && newOptions.GatewaysEnabled == false) gateways.StopAsync();
             if (oldOptions.TriggersEnabled == true && newOptions.TriggersEnabled == false) triggers.StopAsync();
             if (oldOptions.RpcApiEnabled == true && newOptions.RpcApiEnabled == false) rpcHost.StopAsync();
-            if (oldOptions.NodeBroadcastEnabled == true && newOptions.NodeBroadcastEnabled == false) nodeBroadcasts.StopAsync();
+            //if (oldOptions.NodeBroadcastEnabled == true && newOptions.NodeBroadcastEnabled == false) nodeBroadcasts.StopAsync(); // Disabled until implemented. The node broadcast consumers must create their queues on startup, as the queues are deleted when the feature is disabled.
         }
         catch (Exception ex)
         {
