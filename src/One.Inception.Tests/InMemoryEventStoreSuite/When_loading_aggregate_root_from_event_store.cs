@@ -6,6 +6,7 @@ using One.Inception.EventStore.Integrity;
 using One.Inception.IntegrityValidation;
 using One.Inception.Tests.TestModel;
 using Machine.Specifications;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Caching.Memory;
 using System;
 using System.Globalization;
@@ -26,7 +27,7 @@ public class When_loading_aggregate_root_from_event_store
         eventStoreFactory = new EventStoreFactory(eventStore, null);
         eventStorePlayer = new InMemoryEventStorePlayer(eventStoreStorage);
         integrityPpolicy = new EventStreamIntegrityPolicy(null);
-        aggregateRepository = new AggregateRepository(eventStoreFactory, versionService, integrityPpolicy, new AggregateCommitInterceptor(new List<EmptyAggregateTransformer>()), null);
+        aggregateRepository = new AggregateRepository(eventStoreFactory, versionService, integrityPpolicy, new AggregateCommitInterceptor(new List<EmptyAggregateTransformer>()), Options.Create(new BoundedContext { Name = "tests" }), null);
         id = new TestAggregateId();
         aggregateRoot = new TestAggregateRoot(id);
         await aggregateRepository.SaveAsync<TestAggregateRoot>(aggregateRoot);
@@ -89,17 +90,17 @@ public class InMemoryAggregateRootAtomicAction : IAggregateRootAtomicAction
         aggregateRevisions = new MemoryCache(aggregateRevisionsMemoryCacheOptions);
     }
 
-    public async Task<One.Inception.Userfull.Result<bool>> ExecuteAsync(AggregateRootId aggregateRootId, int aggregateRootRevision, Func<Task> action)
+    public async Task<One.Inception.Userfull.Result<bool>> ExecuteAsync(AtomicActionResource resource, int aggregateRootRevision, Func<Task> action)
     {
         var result = new One.Inception.Userfull.Result<bool>(false);
         var acquired = new AtomicBoolean(false);
 
         try
         {
-            acquired = aggregateLock.Get(aggregateRootId.Value) as AtomicBoolean;
+            acquired = aggregateLock.Get(resource.Value) as AtomicBoolean;
             if (acquired is null)
             {
-                acquired = aggregateLock.Set(aggregateRootId.Value, new AtomicBoolean(false), cacheEntryOptions);
+                acquired = aggregateLock.Set(resource.Value, new AtomicBoolean(false), cacheEntryOptions);
                 if (acquired is null)
                     return result;
             }
@@ -108,11 +109,11 @@ public class InMemoryAggregateRootAtomicAction : IAggregateRootAtomicAction
             {
                 try
                 {
-                    AtomicInteger revision = aggregateRevisions.Get(aggregateRootId.Value) as AtomicInteger;
+                    AtomicInteger revision = aggregateRevisions.Get(resource.Value) as AtomicInteger;
                     if (revision is null)
                     {
                         var newRevision = new AtomicInteger(aggregateRootRevision - 1);
-                        revision = aggregateRevisions.Set(aggregateRootId.Value, newRevision, cacheEntryOptions);
+                        revision = aggregateRevisions.Set(resource.Value, newRevision, cacheEntryOptions);
                         if (revision is null)
                             return result;
                     }

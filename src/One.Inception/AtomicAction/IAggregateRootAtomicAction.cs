@@ -6,5 +6,5 @@ namespace One.Inception.AtomicAction;
 
 public interface IAggregateRootAtomicAction : IDisposable
 {
-    Task<Result<bool>> ExecuteAsync(AggregateRootId arId, int aggregateRootRevision, Func<Task> action);
+    Task<Result<bool>> ExecuteAsync(AtomicActionResource resource, int aggregateRootRevision, Func<Task> action);
 }

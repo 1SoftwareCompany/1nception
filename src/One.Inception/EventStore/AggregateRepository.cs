@@ -5,6 +5,7 @@ using One.Inception.AtomicAction;
 using One.Inception.IntegrityValidation;
 using One.Inception.Userfull;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace One.Inception.EventStore;
 
@@ -16,18 +17,21 @@ public sealed class AggregateRepository : IAggregateRepository
     readonly IEventStore eventStore;
     readonly IIntegrityPolicy<EventStream> integrityPolicy;
     private readonly AggregateCommitInterceptor aggregateInterceptor;
+    private readonly IOptions<BoundedContext> boundedContext;
     private readonly ILogger<AggregateRepository> logger;
 
-    public AggregateRepository(IEventStoreFactory eventStoreFactory, IAggregateRootAtomicAction atomicAction, IIntegrityPolicy<EventStream> integrityPolicy, AggregateCommitInterceptor aggregateInterceptor, ILogger<AggregateRepository> logger)
+    public AggregateRepository(IEventStoreFactory eventStoreFactory, IAggregateRootAtomicAction atomicAction, IIntegrityPolicy<EventStream> integrityPolicy, AggregateCommitInterceptor aggregateInterceptor, IOptions<BoundedContext> boundedContext, ILogger<AggregateRepository> logger)
     {
         if (eventStoreFactory is null) throw new ArgumentNullException(nameof(eventStoreFactory));
         if (atomicAction is null) throw new ArgumentNullException(nameof(atomicAction));
         if (integrityPolicy is null) throw new ArgumentNullException(nameof(integrityPolicy));
+        if (boundedContext is null) throw new ArgumentNullException(nameof(boundedContext));
 
         this.eventStore = eventStoreFactory.GetEventStore();
         this.atomicAction = atomicAction;
         this.integrityPolicy = integrityPolicy;
         this.aggregateInterceptor = aggregateInterceptor;
+        this.boundedContext = boundedContext;
         this.logger = logger;
     }
 
@@ -88,7 +92,8 @@ public sealed class AggregateRepository : IAggregateRepository
         var arCommit = new AggregateCommit(aggregateRoot.State.Id.RawId, aggregateRoot.Revision, aggregateRoot.UncommittedEvents.ToList(), aggregateRoot.UncommittedPublicEvents.ToList(), DateTime.UtcNow.ToFileTimeUtc());
         arCommit = await aggregateInterceptor.OnAppendingAsync(arCommit).ConfigureAwait(false);
 
-        var result = await atomicAction.ExecuteAsync(aggregateRoot.State.Id, aggregateRoot.Revision, async () => await eventStore.AppendAsync(arCommit).ConfigureAwait(false)).ConfigureAwait(false);
+        var resource = new AtomicActionResource(boundedContext.Value.Name, aggregateRoot.State.Id);
+        var result = await atomicAction.ExecuteAsync(resource, aggregateRoot.Revision, async () => await eventStore.AppendAsync(arCommit).ConfigureAwait(false)).ConfigureAwait(false);
 
         if (result.IsSuccessful)
         {

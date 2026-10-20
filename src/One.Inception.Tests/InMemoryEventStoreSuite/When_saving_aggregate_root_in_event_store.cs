@@ -6,6 +6,7 @@ using One.Inception.EventStore.Integrity;
 using One.Inception.IntegrityValidation;
 using One.Inception.Tests.TestModel;
 using Machine.Specifications;
+using Microsoft.Extensions.Options;
 
 namespace One.Inception.Tests.InMemoryEventStoreSuite;
 
@@ -20,7 +21,7 @@ public class When_saving_aggregate_root_in_event_store
         eventStorePlayer = new InMemoryEventStorePlayer(eventStoreStorage);
         integrityPpolicy = new EventStreamIntegrityPolicy(null);
         eventStoreFactory = new EventStoreFactory(eventStore, null);
-        aggregateRepository = new AggregateRepository(eventStoreFactory, versionService, integrityPpolicy, new AggregateCommitInterceptor(new List<EmptyAggregateTransformer>()), null);
+        aggregateRepository = new AggregateRepository(eventStoreFactory, versionService, integrityPpolicy, new AggregateCommitInterceptor(new List<EmptyAggregateTransformer>()), Options.Create(new BoundedContext { Name = "tests" }), null);
         id = new TestAggregateId();
         aggregateRoot = new TestAggregateRoot(id);
     };
