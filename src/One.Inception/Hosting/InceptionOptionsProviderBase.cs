@@ -7,6 +7,9 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
+using System.Threading;
 
 namespace One.Inception;
 
@@ -18,6 +21,10 @@ public abstract class InceptionOptionsProviderBase<TOptions> :
     where TOptions : class, new()
 {
     protected IConfiguration configuration;
+
+    private readonly object changeTrackingLock = new object();
+    private CancellationTokenSource changeTokenSource;
+    private string lastSnapshot;
 
     public InceptionOptionsProviderBase(IConfiguration configuration, string name)
     {
@@ -41,7 +48,70 @@ public abstract class InceptionOptionsProviderBase<TOptions> :
         return newOptions;
     }
 
-    public IChangeToken GetChangeToken() => configuration.GetReloadToken();
+    public IChangeToken GetChangeToken()
+    {
+        lock (changeTrackingLock)
+        {
+            if (changeTokenSource is null)
+            {
+                changeTokenSource = new CancellationTokenSource();
+                lastSnapshot = TakeSnapshot();
+                ChangeToken.OnChange(configuration.GetReloadToken, OnConfigurationReloaded);
+            }
+
+            return new CancellationChangeToken(changeTokenSource.Token);
+        }
+    }
+
+    private void OnConfigurationReloaded()
+    {
+        CancellationTokenSource changed;
+        lock (changeTrackingLock)
+        {
+            string snapshot = TakeSnapshot();
+            if (snapshot is not null && snapshot == lastSnapshot)
+                return;
+
+            lastSnapshot = snapshot;
+            changed = changeTokenSource;
+            changeTokenSource = new CancellationTokenSource();
+        }
+
+        changed.Cancel();
+    }
+
+    private string TakeSnapshot()
+    {
+        try
+        {
+            return JsonSerializer.Serialize(Create(Name), SnapshotSerializerOptions);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static readonly JsonSerializerOptions SnapshotSerializerOptions = new JsonSerializerOptions
+    {
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver { Modifiers = { IncludeNonPublicProperties } }
+    };
+
+    private static void IncludeNonPublicProperties(JsonTypeInfo typeInfo)
+    {
+        if (typeInfo.Kind != JsonTypeInfoKind.Object)
+            return;
+
+        foreach (PropertyInfo property in typeInfo.Type.GetProperties(BindingFlags.Instance | BindingFlags.NonPublic))
+        {
+            if (property.GetMethod is null || property.GetIndexParameters().Length > 0)
+                continue;
+
+            JsonPropertyInfo jsonProperty = typeInfo.CreateJsonPropertyInfo(property.PropertyType, property.Name);
+            jsonProperty.Get = property.GetValue;
+            typeInfo.Properties.Add(jsonProperty);
+        }
+    }
 
     public virtual void PostConfigure(string name, TOptions options) { }
 

@@ -32,7 +32,7 @@ public class TenantsOptionsMonitorMock : IOptionsMonitor<TenantsOptions>
     {
         _currentValue = options;
 
-        foreach (var listener in _listeners)
+        foreach (var listener in _listeners.ToArray())
         {
             listener(options, string.Empty);
         }
