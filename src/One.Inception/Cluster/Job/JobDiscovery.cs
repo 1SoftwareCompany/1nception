@@ -33,6 +33,10 @@ public class JobDiscovery : DiscoveryBase<IInceptionJob<object>>
 
         yield return new DiscoveredModel(typeof(IJobNameBuilder), typeof(DefaultJobNameBuilder), ServiceLifetime.Singleton);
         yield return new DiscoveredModel(typeof(DefaultJobNameBuilder), typeof(DefaultJobNameBuilder), ServiceLifetime.Singleton);
+
+        if (jobs.Contains(typeof(TenantBootstrap_Job)) == false)
+            yield return new DiscoveredModel(typeof(TenantBootstrap_Job), typeof(TenantBootstrap_Job), ServiceLifetime.Transient);
+        yield return new DiscoveredModel(typeof(TenantBootstrap_JobFactory), typeof(TenantBootstrap_JobFactory), ServiceLifetime.Transient);
     }
 
     private IEnumerable<DiscoveredModel> GetEventStoreJobs(DiscoveryContext context)

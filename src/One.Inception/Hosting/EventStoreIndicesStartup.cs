@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace One.Inception;
 
-[InceptionStartup(Bootstraps.EventStoreIndices)]
+[InceptionStartup(Bootstraps.EventStoreIndices, ClusterWide = true)]
 public class EventStoreIndicesStartup : IInceptionStartup
 {
     private TenantsOptions tenants;
@@ -64,7 +64,7 @@ public class EventStoreIndicesStartup : IInceptionStartup
             var id = new EventStoreIndexManagerId(index.GetContractId(), tenant);
             var command = new RegisterIndex(id);
 
-            return publisher.PublishAsync(command);
+            return publisher.PublishOrThrowAsync(command);
         }
 
         return Task.CompletedTask;
