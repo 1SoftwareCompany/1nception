@@ -5,10 +5,10 @@ namespace One.Inception.Hosting.Heartbeat;
 
 public class HeartbeatOptions
 {
-    public bool Enabled { get; set; } = false;
+    public bool Enabled { get; set; } = true;
 
     [Range(5, 3600, ErrorMessage = "The configuration `Inception:Heartbeat:IntervalInSeconds` cannot be negative as it represents a time interval in seconds.")]
-    public uint IntervalInSeconds { get; set; } = 5;
+    public uint IntervalInSeconds { get; set; } = 30;
 }
 
 public class HeartbeatOptionsProvider : InceptionOptionsProviderBase<HeartbeatOptions>
