@@ -87,7 +87,7 @@ public abstract class InceptionJob<TData> : IInceptionJob<TData>
                 logger.LogInformation("A job has started...");
                 JobExecutionStatus result = await RunJobAsync(cluster, cancellationToken);
 
-                if (result == JobExecutionStatus.Completed)
+                if (result == JobExecutionStatus.Completed && DeleteDataWhenCompleted)
                 {
                     await cluster.DeleteAsync(cancellationToken).ConfigureAwait(false);
                 }
@@ -102,6 +102,11 @@ public abstract class InceptionJob<TData> : IInceptionJob<TData>
     }
 
     protected abstract Task<JobExecutionStatus> RunJobAsync(IClusterOperations cluster, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// When true, the job data is removed from the cluster after the job completes. Override it to keep the data, so other nodes can see that the job has already completed.
+    /// </summary>
+    protected virtual bool DeleteDataWhenCompleted => true;
 
     public TData Data { get; protected set; }
 

@@ -46,4 +46,13 @@ public class StartupScanner
 
         return (int)rank;
     }
+
+    public static bool IsClusterWide(Type type)
+    {
+        InceptionStartupAttribute startupAttribute = type
+            .GetCustomAttributes(typeof(InceptionStartupAttribute), false)
+            .SingleOrDefault() as InceptionStartupAttribute;
+
+        return startupAttribute?.ClusterWide == true;
+    }
 }

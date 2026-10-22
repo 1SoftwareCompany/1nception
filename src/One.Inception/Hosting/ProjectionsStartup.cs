@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace One.Inception;
 
-[InceptionStartup(Bootstraps.Projections)]
+[InceptionStartup(Bootstraps.Projections, ClusterWide = true)]
 internal sealed class ProjectionsStartup : IInceptionStartup
 {
     private readonly IServiceProvider serviceProvider;
@@ -99,7 +99,7 @@ internal sealed class ProjectionsStartup : IInceptionStartup
                     var replayOptions = GetReplayOptionsFor(projectionVersion.ProjectionName.GetTypeByContract());
 
                     var command = new RegisterProjection(id, projectionVersion.Hash, replayOptions);
-                    await publisher.PublishAsync(command).ConfigureAwait(false);
+                    await publisher.PublishOrThrowAsync(command).ConfigureAwait(false);
                 }
 
                 foreach (ProjectionVersion version in projectionFinderViaReflection.GetProjectionVersionsToInitialize())
@@ -108,7 +108,7 @@ internal sealed class ProjectionsStartup : IInceptionStartup
                     var replayOptions = GetReplayOptionsFor(version.ProjectionName.GetTypeByContract());
 
                     var command = new InitilizeProjection(id, version.Hash, replayOptions);
-                    await publisher.PublishAsync(command).ConfigureAwait(false);
+                    await publisher.PublishOrThrowAsync(command).ConfigureAwait(false);
                 }
             }
         }

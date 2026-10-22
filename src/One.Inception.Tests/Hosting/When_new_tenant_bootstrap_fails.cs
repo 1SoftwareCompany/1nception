@@ -105,7 +105,14 @@ class ApplicationLifetimeStub : IHostApplicationLifetime
 
     public CancellationToken ApplicationStarted => CancellationToken.None;
 
-    public CancellationToken ApplicationStopping => CancellationToken.None;
+    private readonly CancellationTokenSource stopping = new CancellationTokenSource();
+
+    public CancellationToken ApplicationStopping => stopping.Token;
+
+    /// <summary>
+    /// The host is stopping, like when the pod is shut down.
+    /// </summary>
+    public void Stop() => stopping.Cancel();
 
     public CancellationToken ApplicationStopped => CancellationToken.None;
 

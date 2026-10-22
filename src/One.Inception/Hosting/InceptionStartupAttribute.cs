@@ -13,6 +13,12 @@ public class InceptionStartupAttribute : Attribute
     }
 
     public Bootstraps Bootstraps { get; }
+
+    /// <summary>
+    /// Set it to true when the startup prepares resources shared by all nodes, such as database tables or system commands.
+    /// When a new tenant is added at runtime, only one node in the cluster runs such startup for the tenant. Requires a cluster aware <see cref="Cluster.Job.IInceptionJobRunner"/>, otherwise every node runs it.
+    /// </summary>
+    public bool ClusterWide { get; set; }
 }
 
 public enum Bootstraps
