@@ -224,6 +224,38 @@ public class When_a_node_is_shut_down
 }
 
 [Subject("Tenants acknowledgement")]
+public class When_a_node_is_shut_down_right_after_its_tenants_change
+{
+    Establish context = () =>
+    {
+        cluster = new FakeCluster();
+        nodes = Enumerable.Range(1, 2)
+            .Select(i => new ClusterNode($"node{i}", cluster, ["pruvit"], acknowledgementTimeoutMs: 10_000))
+            .ToArray();
+        foreach (ClusterNode node in nodes)
+            node.StartAsync().GetAwaiter().GetResult();
+
+        nodes[1].AddTenant("iskambira4"); // it writes its tenants again shortly after, and while it waits for node1 to know the tenant
+        BooterServices.WaitUntil(() => cluster.NodesWhichKnow("iskambira4").Contains("node2"));
+    };
+
+    Because of = () =>
+    {
+        nodes[1].Stop();
+        Task.Delay(300).GetAwaiter().GetResult(); // longer than the writes after a change
+    };
+
+    It should_not_write_itself_back_after_it_removed_itself = () => cluster.NodesWhichKnow("pruvit").ShouldContainOnly("node1");
+
+    It should_not_fail_to_write = () => nodes[1].Log.Entries.ShouldNotContain(entry => entry.Contains("Failed to write the tenants"));
+
+    Cleanup after = () => nodes.StopAll();
+
+    static FakeCluster cluster;
+    static ClusterNode[] nodes;
+}
+
+[Subject("Tenants acknowledgement")]
 public class When_the_new_tenant_is_removed_while_waiting_for_the_nodes
 {
     Establish context = () =>

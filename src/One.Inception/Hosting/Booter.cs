@@ -324,14 +324,17 @@ public sealed class Booter
     }
 
     /// <summary>
-    /// The startups are ordered by rank. The node startups ranked before the first cluster wide startup run first, the rest of the node startups run after the cluster wide ones.
+    /// The startups are ordered by rank. The cluster wide startups of a tenant run together, in their order, as a single job.
+    /// The node startups ordered before the last cluster wide startup run before all of them, because the cluster wide startups publish messages which need the node startups, such as the transport.
+    /// So a cluster wide startup of a low rank, such as the storage of the event store, runs after the node startups ranked above it. The node startups ordered after the last cluster wide startup run last.
     /// </summary>
     private static (List<Type> NodeStartupsBefore, List<Type> ClusterWideStartups, List<Type> NodeStartupsAfter) SplitStartups(IEnumerable<Type> scanned)
     {
         List<Type> startups = scanned.ToList();
-        List<Type> nodeStartupsBefore = startups.TakeWhile(startup => StartupScanner.IsClusterWide(startup) == false).ToList();
+        int lastClusterWide = startups.FindLastIndex(startup => StartupScanner.IsClusterWide(startup));
         List<Type> clusterWideStartups = startups.Where(StartupScanner.IsClusterWide).ToList();
-        List<Type> nodeStartupsAfter = startups.Except(nodeStartupsBefore).Except(clusterWideStartups).ToList();
+        List<Type> nodeStartupsBefore = startups.Take(lastClusterWide + 1).Except(clusterWideStartups).ToList();
+        List<Type> nodeStartupsAfter = startups.Skip(lastClusterWide + 1).ToList();
 
         return (nodeStartupsBefore, clusterWideStartups, nodeStartupsAfter);
     }

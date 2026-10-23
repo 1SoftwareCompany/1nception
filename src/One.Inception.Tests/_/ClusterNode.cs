@@ -98,6 +98,11 @@ class ClusterNode
     public int AllCalls => calls.Count;
 
     /// <summary>
+    /// The startup calls of this node in the order they started.
+    /// </summary>
+    public IReadOnlyList<StartupCall> Calls => calls.ToArray();
+
+    /// <summary>
     /// The cluster wide startups of this node wait until <see cref="Unblock"/>.
     /// </summary>
     public void Block() => gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

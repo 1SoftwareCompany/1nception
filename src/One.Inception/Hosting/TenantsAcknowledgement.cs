@@ -18,7 +18,7 @@ namespace One.Inception;
 /// </summary>
 /// <remarks>
 /// A node writes its tenants only when they matter: when it starts, right after its tenants change and while it waits for the other nodes. Nothing is written in between.
-/// A node which stops removes itself. A node which crashes cannot, so a node which has not written a new tenant when the wait for it ends is considered gone and is removed.
+/// A node which stops removes itself and writes nothing after that. A node which crashes cannot, so a node which has not written a new tenant when the wait for it ends is considered gone and is removed.
 /// A node which was only slow writes itself back when its tenants change.
 /// </remarks>
 internal sealed class TenantsAcknowledgement
@@ -36,6 +36,7 @@ internal sealed class TenantsAcknowledgement
     private readonly TimeSpan pollInterval;
     private readonly SemaphoreSlim writeLock = new SemaphoreSlim(1, 1);
     private int started;
+    private volatile bool stopping;
 
     public TenantsAcknowledgement(IServiceProvider serviceProvider, IOptionsMonitor<TenantsOptions> monitor, ILogger logger, string node = null,
         TimeSpan? waitTimeout = null, TimeSpan? pollInterval = null)
@@ -59,7 +60,16 @@ internal sealed class TenantsAcknowledgement
             return;
 
         // The other nodes should not wait for a node which has stopped. The host runs the stopping callbacks before it stops, so the removal is done before the process exits.
-        serviceProvider.GetService<IHostApplicationLifetime>()?.ApplicationStopping.Register(() => Task.Run(() => WriteAsync()).Wait(RemoveOnStopTimeout));
+        serviceProvider.GetService<IHostApplicationLifetime>()?.ApplicationStopping.Register(() => Task.Run(RemoveAsync).Wait(RemoveOnStopTimeout));
+    }
+
+    /// <summary>
+    /// Removes this node. The writes which come after it, for example the writes shortly after a tenants change, are not done, because they would write this node back.
+    /// </summary>
+    private Task RemoveAsync()
+    {
+        stopping = true;
+        return WriteAsync();
     }
 
     /// <summary>
@@ -100,9 +110,15 @@ internal sealed class TenantsAcknowledgement
             if (monitor.CurrentValue.Tenants.Contains(tenant, StringComparer.OrdinalIgnoreCase) == false)
                 return; // the tenant has been removed meanwhile, the other nodes will not get it
 
+            if (stopping)
+                return; // this node is going away, it does not write itself anymore
+
             IReadOnlyDictionary<string, List<string>> nodes = await AcknowledgeAsync().ConfigureAwait(false);
             if (nodes is null)
             {
+                if (stopping)
+                    return;
+
                 logger.LogWarning("Unable to check which nodes know tenant {tenant}. Bootstrapping it without waiting for them", tenant);
                 return;
             }
@@ -136,6 +152,9 @@ internal sealed class TenantsAcknowledgement
         await writeLock.WaitAsync().ConfigureAwait(false);
         try
         {
+            if (stopping && tenants is not null)
+                return null; // this node has been removed, or is being removed
+
             DateTime retryUntil = DateTime.UtcNow.Add(BusyRetryTimeout);
             while (true)
             {
