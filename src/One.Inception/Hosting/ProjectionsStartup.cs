@@ -99,7 +99,8 @@ internal sealed class ProjectionsStartup : IInceptionStartup
                     var replayOptions = GetReplayOptionsFor(projectionVersion.ProjectionName.GetTypeByContract());
 
                     var command = new RegisterProjection(id, projectionVersion.Hash, replayOptions);
-                    await publisher.PublishOrThrowAsync(command).ConfigureAwait(false);
+                    if (await publisher.PublishAsync(command).ConfigureAwait(false) == false)
+                        logger.LogError("Failed to publish RegisterProjection for projection {projection} of tenant {tenant}. The projection is not registered", projectionVersion.ProjectionName, tenant);
                 }
 
                 foreach (ProjectionVersion version in projectionFinderViaReflection.GetProjectionVersionsToInitialize())
@@ -108,7 +109,8 @@ internal sealed class ProjectionsStartup : IInceptionStartup
                     var replayOptions = GetReplayOptionsFor(version.ProjectionName.GetTypeByContract());
 
                     var command = new InitilizeProjection(id, version.Hash, replayOptions);
-                    await publisher.PublishOrThrowAsync(command).ConfigureAwait(false);
+                    if (await publisher.PublishAsync(command).ConfigureAwait(false) == false)
+                        logger.LogError("Failed to publish InitilizeProjection for projection {projection} of tenant {tenant}. The projection is not initialized", version.ProjectionName, tenant);
                 }
             }
         }

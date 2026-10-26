@@ -57,17 +57,16 @@ public class EventStoreIndicesStartup : IInceptionStartup
         await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
-    private Task InitializeIndicesForTenantAsync(Type index, string tenant)
+    private async Task InitializeIndicesForTenantAsync(Type index, string tenant)
     {
         if (hostOptions.ApplicationServicesEnabled)
         {
             var id = new EventStoreIndexManagerId(index.GetContractId(), tenant);
             var command = new RegisterIndex(id);
 
-            return publisher.PublishOrThrowAsync(command);
+            if (await publisher.PublishAsync(command).ConfigureAwait(false) == false)
+                logger.LogError("Failed to publish RegisterIndex for index {index} of tenant {tenant}. The index is not registered", index.GetContractId(), tenant);
         }
-
-        return Task.CompletedTask;
     }
 
     private void TenantOptionsChanges(TenantsOptions newOptions)

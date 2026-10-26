@@ -5,83 +5,82 @@ using System.Threading.Tasks;
 using Machine.Specifications;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace One.Inception.Hosting;
 
 [Subject("Booter")]
-public class When_new_tenant_bootstrap_fails_temporarily
+public class When_new_tenant_bootstrap_fails
 {
-    Establish context = () =>
-    {
-        monitor = new TenantsOptionsMonitorMock("pruvit");
-        startup = new FailingStartup(failures: 2);
-        lifetime = new ApplicationLifetimeStub();
-        booter = FailingBootstrap.NewBooter(monitor, startup, lifetime);
-    };
+    Establish context = () => booter = new FailingBootstrap(failures: 1);
 
-    Because of = () =>
-    {
-        monitor.Change(BooterServices.Tenants("pruvit", "iskambira3"));
-        BooterServices.WaitUntil(() => startup.Succeeded == BooterServices.StartupsCount);
-    };
+    Because of = () => booter.ChangeTenants("pruvit", "iskambira3");
 
-    It should_retry_until_the_bootstrap_succeeds = () => startup.Succeeded.ShouldEqual(BooterServices.StartupsCount);
+    It should_try_it_once = () => booter.Startup.Failed.ShouldEqual(1);
 
-    It should_not_stop_the_application = () => lifetime.StopRequested.ShouldBeFalse();
+    It should_log_the_failure = () => booter.Log.Errors.ShouldContain(entry => entry.Contains("Failed to bootstrap new tenants") && entry.Contains("iskambira3"));
 
-    static TenantsOptionsMonitorMock monitor;
-    static FailingStartup startup;
-    static ApplicationLifetimeStub lifetime;
-    static Booter booter;
+    It should_keep_the_service_running = () => booter.Lifetime.StopRequested.ShouldBeFalse();
+
+    static FailingBootstrap booter;
 }
 
 [Subject("Booter")]
-public class When_new_tenant_bootstrap_keeps_failing
+public class When_another_tenant_is_added_after_a_failed_bootstrap
 {
     Establish context = () =>
     {
-        monitor = new TenantsOptionsMonitorMock("pruvit");
-        startup = new FailingStartup(failures: int.MaxValue);
-        lifetime = new ApplicationLifetimeStub();
-        booter = FailingBootstrap.NewBooter(monitor, startup, lifetime);
+        booter = new FailingBootstrap(failures: 1);
+        booter.ChangeTenants("pruvit", "iskambira3");
     };
 
-    Because of = () =>
-    {
-        monitor.Change(BooterServices.Tenants("pruvit", "iskambira3"));
-        BooterServices.WaitUntil(() => lifetime.StopRequested);
-    };
+    Because of = () => booter.ChangeTenants("pruvit", "iskambira3", "iskambira4");
 
-    It should_try_once_and_retry_three_times = () => startup.Failed.ShouldEqual(4);
+    It should_bootstrap_the_added_tenant = () => booter.Startup.Tenants.ShouldContain("iskambira4");
 
-    It should_stop_the_application_so_it_restarts = () => lifetime.StopRequested.ShouldBeTrue();
+    It should_not_try_the_failed_tenant_again = () => booter.Startup.Tenants.ShouldNotContain("iskambira3");
 
-    static TenantsOptionsMonitorMock monitor;
-    static FailingStartup startup;
-    static ApplicationLifetimeStub lifetime;
-    static Booter booter;
+    static FailingBootstrap booter;
 }
 
-static class FailingBootstrap
+class FailingBootstrap
 {
-    public static Booter NewBooter(TenantsOptionsMonitorMock monitor, FailingStartup startup, ApplicationLifetimeStub lifetime)
+    private readonly TenantsOptionsMonitorMock monitor = new TenantsOptionsMonitorMock("pruvit");
+    private readonly Booter booter;
+
+    public FailingBootstrap(int failures)
     {
-        ServiceCollection services = BooterServices.With(monitor, startup);
-        services.AddSingleton<IHostApplicationLifetime>(lifetime);
-        return new Booter(services.BuildServiceProvider(), monitor, NullLogger<Booter>.Instance, [TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero]);
+        Startup = new FailingStartup(failures);
+
+        ServiceCollection services = BooterServices.With(monitor, Startup);
+        services.AddSingleton<IHostApplicationLifetime>(Lifetime);
+        booter = new Booter(services.BuildServiceProvider(), monitor, Log);
+    }
+
+    public FailingStartup Startup { get; }
+
+    public ApplicationLifetimeStub Lifetime { get; } = new ApplicationLifetimeStub();
+
+    public ListLogger<Booter> Log { get; } = new ListLogger<Booter>();
+
+    public void ChangeTenants(params string[] tenants)
+    {
+        monitor.Change(BooterServices.Tenants(tenants));
+        BooterServices.WaitUntil(() => booter.IsIdle);
     }
 }
 
 class FailingStartup : IInceptionStartup, ITenantStartup
 {
     private int failuresLeft;
+    private readonly List<string> tenants = new List<string>();
 
     public FailingStartup(int failures) => failuresLeft = failures;
 
     public int Failed;
 
     public int Succeeded;
+
+    public IReadOnlyList<string> Tenants { get { lock (tenants) return tenants.ToArray(); } }
 
     public Task BootstrapAsync() => Task.CompletedTask;
 
@@ -95,6 +94,7 @@ class FailingStartup : IInceptionStartup, ITenantStartup
         }
 
         Interlocked.Increment(ref Succeeded);
+        lock (this.tenants) this.tenants.AddRange(tenants);
         return Task.CompletedTask;
     }
 }
@@ -109,9 +109,6 @@ class ApplicationLifetimeStub : IHostApplicationLifetime
 
     public CancellationToken ApplicationStopping => stopping.Token;
 
-    /// <summary>
-    /// The host is stopping, like when the pod is shut down.
-    /// </summary>
     public void Stop() => stopping.Cancel();
 
     public CancellationToken ApplicationStopped => CancellationToken.None;

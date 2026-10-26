@@ -33,6 +33,36 @@ public class StartupScanner
         return startups;
     }
 
+    public IEnumerable<Type> ScanForClusterWideStartups()
+    {
+        return Scan().Where(IsClusterWide);
+    }
+
+    /// <summary>
+    /// They run before the cluster wide startups, because those publish messages which need them, such as the transport.
+    /// </summary>
+    public IEnumerable<Type> ScanForNodeStartupsBeforeClusterWide()
+    {
+        int lastClusterWideRank = GetLastClusterWideRank();
+
+        return Scan().Where(type => IsClusterWide(type) == false && GetStartupRank(type) <= lastClusterWideRank);
+    }
+
+    public IEnumerable<Type> ScanForNodeStartupsAfterClusterWide()
+    {
+        int lastClusterWideRank = GetLastClusterWideRank();
+
+        return Scan().Where(type => IsClusterWide(type) == false && GetStartupRank(type) > lastClusterWideRank);
+    }
+
+    private int GetLastClusterWideRank()
+    {
+        return ScanForClusterWideStartups()
+            .Select(GetStartupRank)
+            .DefaultIfEmpty(-1)
+            .Max();
+    }
+
     private int GetStartupRank(Type type)
     {
         InceptionStartupAttribute startupAttribute = type

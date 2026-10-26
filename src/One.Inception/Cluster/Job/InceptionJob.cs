@@ -104,7 +104,7 @@ public abstract class InceptionJob<TData> : IInceptionJob<TData>
     protected abstract Task<JobExecutionStatus> RunJobAsync(IClusterOperations cluster, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// When true, the job data is removed from the cluster after the job completes. Override it to keep the data, so other nodes can see that the job has already completed.
+    /// Override it to keep the data in the cluster, so the other nodes see that the job has completed.
     /// </summary>
     protected virtual bool DeleteDataWhenCompleted => true;
 

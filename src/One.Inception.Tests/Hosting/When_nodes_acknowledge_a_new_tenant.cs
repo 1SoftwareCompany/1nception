@@ -235,14 +235,14 @@ public class When_a_node_is_shut_down_right_after_its_tenants_change
         foreach (ClusterNode node in nodes)
             node.StartAsync().GetAwaiter().GetResult();
 
-        nodes[1].AddTenant("iskambira4"); // it writes its tenants again shortly after, and while it waits for node1 to know the tenant
+        nodes[1].AddTenant("iskambira4"); // it waits for node1 to know the tenant
         BooterServices.WaitUntil(() => cluster.NodesWhichKnow("iskambira4").Contains("node2"));
     };
 
     Because of = () =>
     {
         nodes[1].Stop();
-        Task.Delay(300).GetAwaiter().GetResult(); // longer than the writes after a change
+        Task.Delay(300).GetAwaiter().GetResult();
     };
 
     It should_not_write_itself_back_after_it_removed_itself = () => cluster.NodesWhichKnow("pruvit").ShouldContainOnly("node1");

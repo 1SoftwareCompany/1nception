@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using One.Inception.Cluster;
 using One.Inception.Cluster.Job;
 using One.Inception.Hosting;
 
@@ -32,6 +33,7 @@ class ClusterNode
     private readonly Booter booter;
     private TaskCompletionSource gate;
     private int clusterWideFailuresLeft;
+    private string clusterWideFailingTenant;
 
     /// <param name="build">The build of the code which the node runs. The nodes of a deploy have the same build.</param>
     public ClusterNode(string name, FakeCluster cluster, string[] tenants, ClusterBehavior clusterBehavior = ClusterBehavior.Normal, int clusterBootstrapTimeoutMs = 5000,
@@ -56,6 +58,8 @@ class ClusterNode
             ClusterBehavior.None => null,
             _ => new FakeClusterJobRunner(cluster, name)
         });
+        if (clusterBehavior != ClusterBehavior.None)
+            services.AddSingleton<ITenantsRegistry>(new FakeTenantsRegistry(cluster, name));
         services.AddSingleton<IHostApplicationLifetime>(Lifetime);
 
         ServiceProvider serviceProvider = services.BuildServiceProvider();
@@ -63,7 +67,7 @@ class ClusterNode
 
         var acknowledgement = new TenantsAcknowledgement(serviceProvider, monitor, Log, name, TimeSpan.FromMilliseconds(acknowledgementTimeoutMs), TimeSpan.FromMilliseconds(20));
 
-        booter = new Booter(serviceProvider, monitor, Log, [TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero], TimeSpan.FromMilliseconds(20), TimeSpan.FromMilliseconds(clusterBootstrapTimeoutMs), acknowledgement);
+        booter = new Booter(serviceProvider, monitor, Log, new ClusterWideBootstrap(serviceProvider, monitor, Log, acknowledgement, pollInterval: TimeSpan.FromMilliseconds(20), timeout: TimeSpan.FromMilliseconds(clusterBootstrapTimeoutMs)));
     }
 
     public string Name { get; }
@@ -97,19 +101,17 @@ class ClusterNode
 
     public int AllCalls => calls.Count;
 
-    /// <summary>
-    /// The startup calls of this node in the order they started.
-    /// </summary>
     public IReadOnlyList<StartupCall> Calls => calls.ToArray();
 
-    /// <summary>
-    /// The cluster wide startups of this node wait until <see cref="Unblock"/>.
-    /// </summary>
     public void Block() => gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public void Unblock() => gate?.TrySetResult();
 
-    public void FailClusterWideStartups(int times) => clusterWideFailuresLeft = times;
+    public void FailClusterWideStartups(int times, string tenant = null)
+    {
+        clusterWideFailuresLeft = times;
+        clusterWideFailingTenant = tenant;
+    }
 
     public async Task StartAsync()
     {
@@ -127,32 +129,20 @@ class ClusterNode
             monitor.Change(BooterServices.Tenants(tenants));
     }
 
-    /// <summary>
-    /// The pod is killed: its cluster session expires and it does nothing anymore.
-    /// </summary>
     public void Kill()
     {
         IsDead = true;
         cluster.Kill(Name); // a killed pod does not run its stopping callbacks
     }
 
-    /// <summary>
-    /// The pod is shut down gracefully.
-    /// </summary>
     public void Stop()
     {
         if (IsDead == false) // a killed pod is gone, it cannot be stopped
             Lifetime.Stop();
     }
 
-    /// <summary>
-    /// The nodes which have written that they know the tenant, as the node which bootstraps the tenant sees them.
-    /// </summary>
     public IEnumerable<string> NodesWhichKnow(string tenant) => cluster.NodesWhichKnow(tenant);
 
-    /// <summary>
-    /// How long each cluster wide startup takes.
-    /// </summary>
     public TimeSpan ClusterWideStartupDuration { get; set; } = TimeSpan.Zero;
 
     private async Task BootstrapAsync(Type startupType, string[] tenants)
@@ -170,7 +160,7 @@ class ClusterNode
 
             try
             {
-                if (Interlocked.Decrement(ref clusterWideFailuresLeft) >= 0)
+                if ((clusterWideFailingTenant is null || tenants.Contains(clusterWideFailingTenant)) && Interlocked.Decrement(ref clusterWideFailuresLeft) >= 0)
                     throw new InvalidOperationException("Cassandra is not reachable");
 
                 if (ClusterWideStartupDuration > TimeSpan.Zero)
@@ -259,9 +249,6 @@ class FakeCluster
     private readonly List<string> violations = new List<string>();
     private int step;
 
-    /// <summary>
-    /// The nodes cannot connect to the cluster.
-    /// </summary>
     public volatile bool IsUnreachable;
 
     /// <summary>
@@ -277,28 +264,33 @@ class FakeCluster
 
     public bool Contains(string tenant) => Read(keys => keys.Keys.Any(key => IsKeyOf(key, tenant)));
 
-    public IEnumerable<string> NodesWhichKnow(string tenant) => Read(keys =>
-    {
-        string json = keys.Where(key => key.Key.EndsWith(":tenants-acknowledgement")).Select(key => key.Value.Json).SingleOrDefault();
-        if (json is null)
-            return new List<string>();
+    private readonly Dictionary<string, List<string>> registeredTenants = new Dictionary<string, List<string>>();
 
-        return JsonSerializer.Deserialize<TenantsAcknowledgement_JobData>(json).Nodes.Where(node => node.Value.Tenants.Contains(tenant)).Select(node => node.Key).ToList();
+    public IEnumerable<string> NodesWhichKnow(string tenant) => Read(_ => registeredTenants.Where(node => node.Value.Contains(tenant)).Select(node => node.Key).ToList());
+
+    public bool Register(string writer, string node, IEnumerable<string> tenants) => Write(_ =>
+    {
+        if (deadNodes.Contains(writer))
+            return false;
+
+        registeredTenants[node] = tenants.ToList();
+        return true;
     });
 
-    /// <summary>
-    /// The nodes which were in the cluster's list of nodes when the cluster wide startups of the tenant started, and whether each of them knew the tenant.
-    /// </summary>
+    public bool Unregister(string writer, string node) => Write(_ => deadNodes.Contains(writer) == false && registeredTenants.Remove(node));
+
+    public IReadOnlyDictionary<string, IReadOnlyCollection<string>> RegisteredTenants() =>
+        Read(_ => registeredTenants.ToDictionary(node => node.Key, node => (IReadOnlyCollection<string>)node.Value.ToList()));
+
     public List<(string Node, bool KnewTheTenant)> NodesWhenBootstrapStarted(string tenant) => Read(_ => bootstrapStarts.TryGetValue(tenant, out var nodes) ? nodes.ToList() : new List<(string, bool)>());
 
     private readonly Dictionary<string, List<(string Node, bool KnewTheTenant)>> bootstrapStarts = new Dictionary<string, List<(string, bool)>>();
 
     public bool IsCompleted(string tenant) => Read(keys => keys.Any(key => IsKeyOf(key.Key, tenant) && JsonSerializer.Deserialize<TenantBootstrap_JobData>(key.Value.Json).IsCompleted));
 
-    /// <summary>
-    /// The build which has completed the bootstrap of the tenant.
-    /// </summary>
     public string CompletedBy(string tenant) => Read(keys => keys.Where(key => IsKeyOf(key.Key, tenant)).Select(key => JsonSerializer.Deserialize<TenantBootstrap_JobData>(key.Value.Json)).Where(data => data.IsCompleted).Select(data => data.Build).SingleOrDefault());
+
+    public string FailureOf(string tenant) => Read(keys => keys.Where(key => IsKeyOf(key.Key, tenant)).Select(key => JsonSerializer.Deserialize<TenantBootstrap_JobData>(key.Value.Json)).Where(data => data.IsCompleted).Select(data => data.Failure).SingleOrDefault());
 
     public int KeysOf(string tenant) => Read(keys => keys.Keys.Count(key => IsKeyOf(key, tenant)));
 
@@ -320,9 +312,6 @@ class FakeCluster
 
     private readonly List<(int Step, string Session, string Op, string Key, string Json)> trace = new List<(int, string, string, string, string)>();
 
-    /// <summary>
-    /// What happened to the bootstrap key of the tenant, for diagnosing a failed test.
-    /// </summary>
     public IEnumerable<string> Trace(string tenant) => Read(_ => trace.Where(entry => entry.Key.Contains($":{tenant}:")).Select(entry => $"[{entry.Step}] {entry.Session?.Split('/')[0]} {entry.Op}: {entry.Json}").ToList());
 
     private void Record(string op, string key, string session, string json) => trace.Add((step, session, op, key, json));
@@ -374,12 +363,8 @@ class FakeCluster
         if (running.Any(other => other != node))
             violations.Add($"The cluster wide startups of `{tenant}` run on `{node}` and `{string.Join(", ", running)}` at the same time");
 
-        string acknowledgements = keys.Where(key => key.Key.EndsWith(":tenants-acknowledgement")).Select(key => key.Value.Json).SingleOrDefault();
-        if (acknowledgements is not null && bootstrapStarts.ContainsKey(tenant) == false)
-        {
-            bootstrapStarts[tenant] = JsonSerializer.Deserialize<TenantsAcknowledgement_JobData>(acknowledgements).Nodes
-                .Select(known => (known.Key, known.Value.Tenants.Contains(tenant))).ToList();
-        }
+        if (registeredTenants.Count > 0 && bootstrapStarts.ContainsKey(tenant) == false)
+            bootstrapStarts[tenant] = registeredTenants.Select(known => (known.Key, known.Value.Contains(tenant))).ToList();
 
         running.Add(node);
         return true;
@@ -457,6 +442,7 @@ class FakeClusterJobRunner : IInceptionJobRunner, IClusterOperations
 
     public Task<TData> PingAsync<TData>(TData data, CancellationToken cancellationToken = default) where TData : class, new()
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ThrowIfUnreachable();
         ThrowIfRejectsWrites();
         cluster.Put(jobName, session, JsonSerializer.Serialize(data));
@@ -470,7 +456,11 @@ class FakeClusterJobRunner : IInceptionJobRunner, IClusterOperations
         return Task.FromResult(cluster.Delete(jobName, session));
     }
 
-    public void Dispose() { }
+    public void Dispose()
+    {
+        if (jobName is not null)
+            cluster.Release(jobName, session); // like the Consul job runner, which releases the key when it is disposed
+    }
 
     private void ThrowIfUnreachable()
     {
@@ -481,6 +471,47 @@ class FakeClusterJobRunner : IInceptionJobRunner, IClusterOperations
     private void ThrowIfRejectsWrites()
     {
         if (cluster.RejectsWrites)
+            throw new HttpRequestException("Consul rejected the write");
+    }
+}
+
+class FakeTenantsRegistry : ITenantsRegistry
+{
+    private readonly FakeCluster cluster;
+    private readonly string writer;
+
+    public FakeTenantsRegistry(FakeCluster cluster, string writer)
+    {
+        this.cluster = cluster;
+        this.writer = writer;
+    }
+
+    public Task RegisterAsync(string node, IEnumerable<string> tenants)
+    {
+        ThrowIfUnavailable(write: true);
+        cluster.Register(writer, node, tenants);
+        return Task.CompletedTask;
+    }
+
+    public Task UnregisterAsync(string node)
+    {
+        ThrowIfUnavailable(write: true);
+        cluster.Unregister(writer, node);
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyDictionary<string, IReadOnlyCollection<string>>> GetAllAsync()
+    {
+        ThrowIfUnavailable(write: false);
+        return Task.FromResult(cluster.RegisteredTenants());
+    }
+
+    private void ThrowIfUnavailable(bool write)
+    {
+        if (cluster.IsUnreachable)
+            throw new HttpRequestException("Consul is not reachable");
+
+        if (write && cluster.RejectsWrites)
             throw new HttpRequestException("Consul rejected the write");
     }
 }
