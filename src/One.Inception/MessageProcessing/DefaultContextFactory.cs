@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -18,6 +18,7 @@ public class DefaultContextFactory
     private readonly IInceptionContextAccessor _contextAccessor;
     private readonly ITenantResolver _tenantResolver;
     private TenantsOptions tenantsOptions;
+    private readonly IOptionsMonitor<TenantsOptions> tenantsOptionsMonitor;
 
     public DefaultContextFactory(IServiceProvider serviceProvider, ILogger<DefaultContextFactory> logger)
     {
@@ -27,6 +28,7 @@ public class DefaultContextFactory
         _logger = logger;
 
         IOptionsMonitor<TenantsOptions> optionsMonitor = serviceProvider.GetRequiredService<IOptionsMonitor<TenantsOptions>>();
+        tenantsOptionsMonitor = optionsMonitor;
         tenantsOptions = optionsMonitor.CurrentValue;
 
         optionsMonitor.OnChange(Changed);
@@ -46,8 +48,9 @@ public class DefaultContextFactory
         string tenant = _tenantResolver.Resolve(contextTarget);
         EnsureValidTenant(tenant);
 
-        InceptionContext context = new InceptionContext(tenant, contextServiceProvider);
+        InceptionContext context = new InceptionContext(tenant, contextServiceProvider, tenantsOptionsMonitor);
 
+        _logger.LogTrace("Created tenant context: Tenant={tenant}, BeingDeleted={beingDeleted}", tenant, context.IsTenantBeingDeleted);
         Initialize(context);
 
         return context;
@@ -78,6 +81,8 @@ public class DefaultContextFactory
             _logger.LogDebug("tenants options re-loaded with {@options}", newOptions);
 
         tenantsOptions = newOptions;
+        if (_logger.IsEnabled(LogLevel.Trace))
+            _logger.LogTrace("Tenant options refreshed. TenantsBeingDeleted={tenantsBeingDeleted}", string.Join(", ", newOptions.TenantsBeingDeleted ?? Array.Empty<string>()));
     }
 
     /// <summary>
