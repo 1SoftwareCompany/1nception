@@ -1,4 +1,5 @@
 ﻿using System.Runtime.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace One.Inception.Projections.Versioning;
@@ -23,7 +24,7 @@ public class ProjectionVersionManagerAppService : ApplicationService<ProjectionV
         this.projectionReader = projectionReader;
     }
 
-    public async Task HandleAsync(RegisterProjection command)
+    public async Task HandleAsync(RegisterProjection command, CancellationToken cancellationToken)
     {
         ProjectionVersionManager ar = null;
         ReadResult<ProjectionVersionManager> result = await repository.LoadAsync<ProjectionVersionManager>(command.Id).ConfigureAwait(false);
@@ -44,37 +45,37 @@ public class ProjectionVersionManagerAppService : ApplicationService<ProjectionV
         await repository.SaveAsync(ar).ConfigureAwait(false);
     }
 
-    public Task HandleAsync(NewProjectionVersion command)
+    public Task HandleAsync(NewProjectionVersion command, CancellationToken cancellationToken)
     {
         return UpdateAsync(command.Id, ar => ar.Replay(command.Hash, projectionVersioningPolicy, command.ReplayEventsOptions));
     }
 
-    public Task HandleAsync(FixProjectionVersion command)
+    public Task HandleAsync(FixProjectionVersion command, CancellationToken cancellationToken)
     {
         return UpdateAsync(command.Id, ar => ar.Rebuild(command.Hash, projectionVersioningPolicy, command.ReplayEventsOptions));
     }
 
-    public Task HandleAsync(FinalizeProjectionVersionRequest command)
+    public Task HandleAsync(FinalizeProjectionVersionRequest command, CancellationToken cancellationToken)
     {
         return UpdateAsync(command.Id, ar => ar.FinalizeVersionRequest(command.Version));
     }
 
-    public Task HandleAsync(CancelProjectionVersionRequest command)
+    public Task HandleAsync(CancelProjectionVersionRequest command, CancellationToken cancellationToken)
     {
         return UpdateAsync(command.Id, ar => ar.CancelVersionRequest(command.Version, command.Reason));
     }
 
-    public Task HandleAsync(TimeoutProjectionVersionRequest command)
+    public Task HandleAsync(TimeoutProjectionVersionRequest command, CancellationToken cancellationToken)
     {
         return UpdateAsync(command.Id, ar => ar.VersionRequestTimedout(command.Version, command.Timebox));
     }
 
-    public Task HandleAsync(PauseProjectionVersion command)
+    public Task HandleAsync(PauseProjectionVersion command, CancellationToken cancellationToken)
     {
         return UpdateAsync(command.Id, ar => ar.PauseVersionRequest(command.Version));
     }
 
-    public async Task HandleAsync(InitilizeProjection command)
+    public async Task HandleAsync(InitilizeProjection command, CancellationToken cancellationToken)
     {
         ProjectionVersionManager ar = null;
         ReadResult<ProjectionVersionManager> result = await repository.LoadAsync<ProjectionVersionManager>(command.Id).ConfigureAwait(false);

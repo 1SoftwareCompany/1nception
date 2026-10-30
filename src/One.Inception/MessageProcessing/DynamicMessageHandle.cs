@@ -12,6 +12,7 @@ public sealed class DynamicMessageHandle : Workflow<HandlerContext>
     protected override Task RunAsync(Execution<HandlerContext> execution)
     {
         dynamic handler = execution.Context.HandlerInstance;
-        return handler.HandleAsync((dynamic)execution.Context.Message);
+        execution.Context.CancellationToken.ThrowIfCancellationRequested();
+        return handler.HandleAsync((dynamic)execution.Context.Message, execution.Context.CancellationToken);
     }
 }

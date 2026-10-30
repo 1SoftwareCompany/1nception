@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using One.Inception.Cluster.Job;
 using One.Inception.EventStore.Index;
@@ -132,40 +133,50 @@ public sealed class InceptionHost : IInceptionHost
         }
     }
 
-    public async Task StopAsync()
+    public async Task StopAsync(CancellationToken cancellationToken = default)
     {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(hostOptions.ShutdownTimeout);
+
         try
         {
             List<Task> stopTasks = new List<Task>();
 
-            if (hostOptions.ApplicationServicesEnabled) stopTasks.Add(appServices.StopAsync());
-            if (hostOptions.ProcessManagersEnabled) stopTasks.Add(processManagers.StopAsync());
-            if (hostOptions.ProjectionsEnabled) stopTasks.Add(projections.StopAsync());
-            if (hostOptions.PortsEnabled) stopTasks.Add(ports.StopAsync());
-            if (hostOptions.GatewaysEnabled) stopTasks.Add(gateways.StopAsync());
-            if (hostOptions.TriggersEnabled) stopTasks.Add(triggers.StopAsync());
-            if (hostOptions.MigrationsEnabled) stopTasks.Add(migrations.StopAsync());
-            if (hostOptions.NodeBroadcastEnabled) stopTasks.Add(nodeBroadcasts.StopAsync());
+            if (hostOptions.ApplicationServicesEnabled)
+            {
+                stopTasks.Add(appServices.StopAsync(deadline.Token));
+                stopTasks.Add(indices.StopAsync(deadline.Token));
+            }
+            if (hostOptions.ProcessManagersEnabled) stopTasks.Add(processManagers.StopAsync(deadline.Token));
+            if (hostOptions.ProjectionsEnabled) stopTasks.Add(projections.StopAsync(deadline.Token));
+            if (hostOptions.PortsEnabled) stopTasks.Add(ports.StopAsync(deadline.Token));
+            if (hostOptions.GatewaysEnabled) stopTasks.Add(gateways.StopAsync(deadline.Token));
+            if (hostOptions.TriggersEnabled) stopTasks.Add(triggers.StopAsync(deadline.Token));
+            if (hostOptions.MigrationsEnabled) stopTasks.Add(migrations.StopAsync(deadline.Token));
+            if (hostOptions.NodeBroadcastEnabled) stopTasks.Add(nodeBroadcasts.StopAsync(deadline.Token));
 
             if (hostOptions.SystemServicesEnabled)
             {
-                stopTasks.Add(systemAppServices.StopAsync());
-                stopTasks.Add(systemPorts.StopAsync());
-                stopTasks.Add(systemProjections.StopAsync());
-                stopTasks.Add(systemProcessManagers.StopAsync());
-                stopTasks.Add(systemTriggers.StopAsync());
-                stopTasks.Add(systemIndices.StopAsync());
-                stopTasks.Add(indices.StopAsync());
+                stopTasks.Add(systemAppServices.StopAsync(deadline.Token));
+                stopTasks.Add(systemPorts.StopAsync(deadline.Token));
+                stopTasks.Add(systemProjections.StopAsync(deadline.Token));
+                stopTasks.Add(systemProcessManagers.StopAsync(deadline.Token));
+                stopTasks.Add(systemTriggers.StopAsync(deadline.Token));
+                stopTasks.Add(systemIndices.StopAsync(deadline.Token));
             }
 
             if (hostOptions.RpcApiEnabled)
             {
-                stopTasks.Add(rpcHost.StopAsync());
+                stopTasks.Add(rpcHost.StopAsync(deadline.Token));
             }
 
             stopTasks.Add(jobManager.CancelAllAsync());
 
-            await Task.WhenAll(stopTasks).ConfigureAwait(false);
+            await Task.WhenAll(stopTasks).WaitAsync(deadline.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+        {
+            logger.LogWarning("Inception shutdown deadline expired. Unfinished handlers may be redelivered.");
         }
         catch (Exception ex)
         {
@@ -193,7 +204,11 @@ public sealed class InceptionHost : IInceptionHost
     {
         try
         {
-            if (oldOptions.ApplicationServicesEnabled == false && newOptions.ApplicationServicesEnabled == true) appServices.StartAsync();
+            if (oldOptions.ApplicationServicesEnabled == false && newOptions.ApplicationServicesEnabled == true)
+            {
+                appServices.StartAsync();
+                indices.StartAsync();
+            }
             if (oldOptions.ProcessManagersEnabled == false && newOptions.ProcessManagersEnabled == true) processManagers.StartAsync();
             if (oldOptions.ProjectionsEnabled == false && newOptions.ProjectionsEnabled == true) projections.StartAsync();
             if (oldOptions.PortsEnabled == false && newOptions.PortsEnabled == true) ports.StartAsync();
@@ -213,7 +228,11 @@ public sealed class InceptionHost : IInceptionHost
     {
         try
         {
-            if (oldOptions.ApplicationServicesEnabled == true && newOptions.ApplicationServicesEnabled == false) appServices.StopAsync();
+            if (oldOptions.ApplicationServicesEnabled == true && newOptions.ApplicationServicesEnabled == false)
+            {
+                appServices.StopAsync();
+                indices.StopAsync();
+            }
             if (oldOptions.ProcessManagersEnabled == true && newOptions.ProcessManagersEnabled == false) processManagers.StopAsync();
             if (oldOptions.ProjectionsEnabled == true && newOptions.ProjectionsEnabled == false) projections.StopAsync();
             if (oldOptions.PortsEnabled == true && newOptions.PortsEnabled == false) ports.StopAsync();

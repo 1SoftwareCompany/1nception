@@ -66,11 +66,15 @@ public sealed class MessageHandleWorkflow : Workflow<HandleContext>
         {
             using (IHandlerInstance handler = await CreateHandler.RunAsync(execution.Context).ConfigureAwait(false))
             {
-                var handleContext = new HandlerContext(execution.Context.Message.Payload, handler.Current, execution.Context.Message);
+                var handleContext = new HandlerContext(execution.Context.Message.Payload, handler.Current, execution.Context.Message, execution.Context.CancellationToken);
                 await BeginHandle.RunAsync(handleContext).ConfigureAwait(false);
                 await ActualHandle.RunAsync(handleContext).ConfigureAwait(false);
                 await EndHandle.RunAsync(handleContext).ConfigureAwait(false);
             }
+        }
+        catch (OperationCanceledException) when (execution.Context.CancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {

@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using One.Inception.Multitenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -42,13 +43,19 @@ public class DefaultContextFactory
     /// <param name="featureCollection"></param>
     /// <returns>An initialized <see cref="InceptionContext"/> object.</returns>
     public InceptionContext Create(object contextTarget, IServiceProvider contextServiceProvider)
+        => Create(contextTarget, contextServiceProvider, CancellationToken.None);
+
+    public InceptionContext Create(object contextTarget, IServiceProvider contextServiceProvider, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(contextTarget);
 
         string tenant = _tenantResolver.Resolve(contextTarget);
         EnsureValidTenant(tenant);
 
-        InceptionContext context = new InceptionContext(tenant, contextServiceProvider, tenantsOptionsMonitor);
+        InceptionContext context = new InceptionContext(tenant, contextServiceProvider, tenantsOptionsMonitor)
+        {
+            CancellationToken = cancellationToken
+        };
 
         _logger.LogTrace("Created tenant context: Tenant={tenant}, BeingDeleted={beingDeleted}", tenant, context.IsTenantBeingDeleted);
         Initialize(context);

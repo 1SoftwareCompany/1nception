@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace One.Inception.MessageProcessing;
@@ -14,5 +15,5 @@ public interface ISubscriber
     /// <returns></returns>
     IEnumerable<Type> GetInvolvedMessageTypes();
     Type HandlerType { get; }
-    Task ProcessAsync(InceptionMessage message);
+    Task ProcessAsync(InceptionMessage message, CancellationToken cancellationToken = default);
 }

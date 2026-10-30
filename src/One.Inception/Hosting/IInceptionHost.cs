@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace One.Inception;
@@ -6,5 +7,5 @@ namespace One.Inception;
 public interface IInceptionHost : IDisposable
 {
     Task StartAsync();
-    Task StopAsync();
+    Task StopAsync(CancellationToken cancellationToken = default);
 }

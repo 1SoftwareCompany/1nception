@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using One.Inception.Cluster.Job;
 
@@ -23,7 +24,7 @@ public class EventStoreIndexBuilder : ProcessManager, ISystemProcessManager,
         this.messageCounterJobFactory = messageCounterJobFactory;
     }
 
-    public async Task HandleAsync(EventStoreIndexRequested @event)
+    public async Task HandleAsync(EventStoreIndexRequested @event, CancellationToken cancellationToken)
     {
         var startRebuildAt = @event.Timebox.RequestStartAt;
         if (startRebuildAt.AddMinutes(5) > DateTime.UtcNow && @event.Timebox.HasExpired == false)
@@ -33,7 +34,7 @@ public class EventStoreIndexBuilder : ProcessManager, ISystemProcessManager,
         }
     }
 
-    public async Task HandleAsync(RebuildIndexInternal processManagerTimeout)
+    public async Task HandleAsync(RebuildIndexInternal processManagerTimeout, CancellationToken cancellationToken)
     {
         IInceptionJob<object> job = null;
         // we need to redesign the job factories
@@ -48,7 +49,8 @@ public class EventStoreIndexBuilder : ProcessManager, ISystemProcessManager,
             job = jobFactory.CreateJob(processManagerTimeout.EventStoreIndexRequest.Timebox, processManagerTimeout.MaxDegreeOfParallelism);
         }
 
-        JobExecutionStatus result = await jobRunner.ExecuteAsync(job);
+        JobExecutionStatus result = await jobRunner.ExecuteAsync(job, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (result == JobExecutionStatus.Running)
         {
@@ -66,7 +68,7 @@ public class EventStoreIndexBuilder : ProcessManager, ISystemProcessManager,
         }
     }
 
-    public Task HandleAsync(EventStoreIndexRebuildTimedout processManagerTimeout)
+    public Task HandleAsync(EventStoreIndexRebuildTimedout processManagerTimeout, CancellationToken cancellationToken)
     {
         //var timedout = new TimeoutProjectionVersionRequest(processManagerTimeout.ProjectionVersionRequest.Id, processManagerTimeout.ProjectionVersionRequest.Version, processManagerTimeout.ProjectionVersionRequest.Timebox);
         //commandPublisher.Publish(timedout);

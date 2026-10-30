@@ -245,13 +245,13 @@ public partial class ProjectionRepository : IProjectionWriter, IProjectionReader
             {
                 ProjectionStream stream = await LoadProjectionStreamAsync(projectionId, projectionType).ConfigureAwait(false);
                 IHandlerInstance projectionInstance = handlerFactory.Create(projectionType);
-                var readResult = new ReadResult<T>(await stream.RestoreFromHistoryAsync((T)projectionInstance.Current).ConfigureAwait(false));
+                var readResult = new ReadResult<T>(await stream.RestoreFromHistoryAsync((T)projectionInstance.Current, contextAccessor.Context.CancellationToken).ConfigureAwait(false));
                 if (readResult.NotFound)
                     LogProjectionInstanceNotFound(log, null);
 
                 return readResult;
             }
-            catch (Exception ex) when (ExceptionFilter.True(() => LogProjectionLoadError(log, ex)))
+            catch (Exception ex) when ((ex is not OperationCanceledException || !contextAccessor.Context.CancellationToken.IsCancellationRequested) && ExceptionFilter.True(() => LogProjectionLoadError(log, ex)))
             {
                 return ReadResult<T>.WithError(ex);
             }
@@ -287,13 +287,13 @@ public partial class ProjectionRepository : IProjectionWriter, IProjectionReader
                 }
 
                 IHandlerInstance projectionInstance = handlerFactory.Create(projectionType);
-                var readResult = new ReadResult<T>(await stream.RestoreFromHistoryAsync((T)projectionInstance.Current).ConfigureAwait(false));
+                var readResult = new ReadResult<T>(await stream.RestoreFromHistoryAsync((T)projectionInstance.Current, contextAccessor.Context.CancellationToken).ConfigureAwait(false));
                 if (readResult.NotFound)
                     LogProjectionInstanceNotFound(log, null);
 
                 return readResult;
             }
-            catch (Exception ex) when (ExceptionFilter.True(() => LogProjectionLoadError(log, ex)))
+            catch (Exception ex) when ((ex is not OperationCanceledException || !contextAccessor.Context.CancellationToken.IsCancellationRequested) && ExceptionFilter.True(() => LogProjectionLoadError(log, ex)))
             {
                 return ReadResult<T>.WithError(ex);
             }
@@ -324,11 +324,11 @@ public partial class ProjectionRepository : IProjectionWriter, IProjectionReader
             ProjectionVersion persistentVersion = new ProjectionVersion(projectionVersions_ProjectionName, ProjectionStatus.Live, 1, projectionHasher.CalculateHash(persistentVersionType));
             ProjectionStream stream = await LoadProjectionStreamAsync(versionId, persistentVersion).ConfigureAwait(false);
             ProjectionVersionsHandler projectionInstance = new ProjectionVersionsHandler();
-            projectionInstance = await stream.RestoreFromHistoryAsync(projectionInstance).ConfigureAwait(false);
+            projectionInstance = await stream.RestoreFromHistoryAsync(projectionInstance, contextAccessor.Context.CancellationToken).ConfigureAwait(false);
 
             return new ReadResult<ProjectionVersionsHandler>(projectionInstance);
         }
-        catch (Exception ex) when (ExceptionFilter.True(() => LogProjectionLoadError(log, ex)))
+        catch (Exception ex) when ((ex is not OperationCanceledException || !contextAccessor.Context.CancellationToken.IsCancellationRequested) && ExceptionFilter.True(() => LogProjectionLoadError(log, ex)))
         {
             return ReadResult<ProjectionVersionsHandler>.WithError(ex.Message);
         }

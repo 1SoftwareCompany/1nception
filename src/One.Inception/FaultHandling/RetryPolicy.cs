@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using One.Inception.FaultHandling.Strategies;
 using One.Inception.MessageProcessing;
@@ -143,7 +144,7 @@ public class RetryPolicy
     /// <typeparam name="TResult">The type of result expected from the executable action.</typeparam>
     /// <param name="func">A delegate representing the executable action which returns the result of type R.</param>
     /// <returns>The result from the action.</returns>
-    public virtual async Task<TResult> ExecuteActionAsync<TResult>(Func<Task<TResult>> func)
+    public virtual async Task<TResult> ExecuteActionAsync<TResult>(Func<Task<TResult>> func, CancellationToken cancellationToken = default)
     {
         //Guard.ArgumentNotNull(func, "func");
 
@@ -155,6 +156,7 @@ public class RetryPolicy
 
         while (true)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             lastError = null;
 
             try
@@ -201,7 +203,7 @@ public class RetryPolicy
 
             if (retryCount > 1 || RetryStrategy.FastFirstRetry == false)
             {
-                await Task.Delay(delay).ConfigureAwait(false);
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
             }
         }
     }

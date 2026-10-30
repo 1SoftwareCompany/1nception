@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 using One.Inception.Workflow;
+using One.Inception.MessageProcessing;
 using Microsoft.Extensions.Logging;
 
 namespace One.Inception.FaultHandling;
@@ -22,6 +23,7 @@ public class InMemoryRetryWorkflow<TContext> : Workflow<TContext> where TContext
     {
         if (execution is null) throw new ArgumentNullException(nameof(execution));
 
-        await retryPolicy.ExecuteActionAsync(() => workflow.RunAsync(execution.Context));
+        var cancellationToken = (execution.Context as HandleContext)?.CancellationToken ?? default;
+        await retryPolicy.ExecuteActionAsync(() => workflow.RunAsync(execution.Context), cancellationToken);
     }
 }
