@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Threading;
+using System.Threading.Tasks;
 
 namespace One.Inception.AutoUpdates;
 
@@ -11,5 +12,5 @@ public interface IAutoUpdate
 
     public string Name { get; }
 
-    Task<bool> ApplyAsync();
+    Task<bool> ApplyAsync(CancellationToken cancellationToken);
 }

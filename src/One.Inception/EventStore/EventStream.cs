@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace One.Inception.EventStore;
 
@@ -34,6 +35,9 @@ public sealed class EventStream
     public IEnumerable<AggregateCommit> Commits { get { return aggregateCommits; } }
 
     public bool TryRestoreFromHistory<T>(out T aggregateRoot) where T : IAmEventSourced
+        => TryRestoreFromHistory(out aggregateRoot, CancellationToken.None);
+
+    public bool TryRestoreFromHistory<T>(out T aggregateRoot, CancellationToken cancellationToken) where T : IAmEventSourced
     {
         //http://www.datastax.com/dev/blog/client-side-improvements-in-cassandra-2-0
         aggregateRoot = default(T);
@@ -42,12 +46,21 @@ public sealed class EventStream
         {
             int currentRevision = aggregateCommits.Last().Revision;
             aggregateRoot = (T)FastActivator.CreateInstance(typeof(T), true);
-            aggregateRoot.ReplayEvents(events, currentRevision);
+            aggregateRoot.ReplayEvents(CancelBetweenEvents(events, cancellationToken), currentRevision);
             return true;
         }
         else
         {
             return false;
+        }
+    }
+
+    private static IEnumerable<IEvent> CancelBetweenEvents(IEnumerable<IEvent> events, CancellationToken cancellationToken)
+    {
+        foreach (IEvent @event in events)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return @event;
         }
     }
 

@@ -160,6 +160,9 @@ public sealed class ReplayNotPersistedProjection_Job : InceptionJob<ReplayNotPer
                 };
 
                 await player.EnumerateEventStore(playerOperator, opt, cancellationToken).ConfigureAwait(false);
+
+                if (cancellationToken.IsCancellationRequested)
+                    return JobExecutionStatus.Canceled;
             }
         }
         else
@@ -236,6 +239,9 @@ public sealed class ReplayNotPersistedProjection_Job : InceptionJob<ReplayNotPer
             };
 
             await player.EnumerateEventStore(playerOperator, opt, cancellationToken).ConfigureAwait(false);
+
+            if (cancellationToken.IsCancellationRequested)
+                return JobExecutionStatus.Canceled;
 
             await projectionInstance.OnReplayCompletedAsync().ConfigureAwait(false);
             elapsed = progressTracker.GetElapsed();

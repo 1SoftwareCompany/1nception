@@ -86,11 +86,13 @@ public class When_the_host_shutdown_deadline_expires
 public class ShutdownConsumer<T> : IConsumer<T> where T : IMessageHandler
 {
     public bool Stopped;
+    public int StopCalls;
     public CancellationToken Token;
     public Task StartAsync() => Task.CompletedTask;
     public Task StopAsync(CancellationToken cancellationToken = default)
     {
         Stopped = true;
+        StopCalls++;
         Token = cancellationToken;
         return Task.Delay(Timeout.Infinite, cancellationToken);
     }

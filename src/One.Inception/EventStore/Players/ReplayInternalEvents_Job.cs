@@ -73,6 +73,9 @@ public class ReplayInternalEvents_Job : InceptionJob<ReplayInternalEvents_JobDat
 
         await player.EnumerateEventStore(@operator, opt, cancellationToken).ConfigureAwait(false);
 
+        if (cancellationToken.IsCancellationRequested)
+            return JobExecutionStatus.Canceled;
+
         Data.IsCompleted = true;
         Data.Timestamp = DateTimeOffset.UtcNow;
         Data = await cluster.PingAsync(Data).ConfigureAwait(false);

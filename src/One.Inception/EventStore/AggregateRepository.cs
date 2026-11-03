@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using One.Inception.AtomicAction;
 using One.Inception.IntegrityValidation;
+using One.Inception.MessageProcessing;
 using One.Inception.Userfull;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -19,8 +21,9 @@ public sealed class AggregateRepository : IAggregateRepository
     private readonly AggregateCommitInterceptor aggregateInterceptor;
     private readonly IOptions<BoundedContext> boundedContext;
     private readonly ILogger<AggregateRepository> logger;
+    private readonly IInceptionContextAccessor contextAccessor;
 
-    public AggregateRepository(IEventStoreFactory eventStoreFactory, IAggregateRootAtomicAction atomicAction, IIntegrityPolicy<EventStream> integrityPolicy, AggregateCommitInterceptor aggregateInterceptor, IOptions<BoundedContext> boundedContext, ILogger<AggregateRepository> logger)
+    public AggregateRepository(IEventStoreFactory eventStoreFactory, IAggregateRootAtomicAction atomicAction, IIntegrityPolicy<EventStream> integrityPolicy, AggregateCommitInterceptor aggregateInterceptor, IOptions<BoundedContext> boundedContext, ILogger<AggregateRepository> logger, IInceptionContextAccessor contextAccessor = null)
     {
         if (eventStoreFactory is null) throw new ArgumentNullException(nameof(eventStoreFactory));
         if (atomicAction is null) throw new ArgumentNullException(nameof(atomicAction));
@@ -33,6 +36,7 @@ public sealed class AggregateRepository : IAggregateRepository
         this.aggregateInterceptor = aggregateInterceptor;
         this.boundedContext = boundedContext;
         this.logger = logger;
+        this.contextAccessor = contextAccessor;
     }
 
     /// <summary>
@@ -60,7 +64,8 @@ public sealed class AggregateRepository : IAggregateRepository
             throw new EventStreamIntegrityViolationException($"AR integrity is violated for ID={id.Value}");
         eventStream = integrityResult.Output;
         AR aggregateRoot;
-        if (eventStream.TryRestoreFromHistory(out aggregateRoot) == false) // this should be a sync operation, it's just triggers internal in-memory handlers for an aggregate
+        CancellationToken cancellationToken = contextAccessor?.Context?.CancellationToken ?? CancellationToken.None;
+        if (eventStream.TryRestoreFromHistory(out aggregateRoot, cancellationToken) == false) // this should be a sync operation, it's just triggers internal in-memory handlers for an aggregate
             return ReadResult<AR>.WithNotFoundHint($"Unable to load AR with ID={id.Value}");
 
         return new ReadResult<AR>(aggregateRoot);

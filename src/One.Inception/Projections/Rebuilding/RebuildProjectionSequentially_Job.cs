@@ -180,6 +180,12 @@ public sealed class RebuildProjectionSequentially_Job : InceptionJob<RebuildProj
             progressTracker.MarkProcessStart();
             await player.EnumerateEventStore(playerOperator, opt, cancellationToken).ConfigureAwait(false);
 
+            if (cancellationToken.IsCancellationRequested)
+            {
+                pingSource.Cancel(); // it is not linked to the cancellationToken
+                return JobExecutionStatus.Canceled;
+            }
+
             await projection.OnReplayCompletedAsync().ConfigureAwait(false);
             elapsed = progressTracker.GetElapsed();
         }

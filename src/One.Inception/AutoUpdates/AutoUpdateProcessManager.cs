@@ -22,7 +22,7 @@ public class AutoUpdateProcessManager : ProcessManager, ISystemProcessManager, /
     public async Task HandleAsync(AutoUpdateTriggered @event, CancellationToken cancellationToken)
     {
         IAutoUpdate updater = strategy.GetInstanceFor(@event.Name);
-        bool finished = await updater.ApplyAsync().ConfigureAwait(false);
+        bool finished = await updater.ApplyAsync(cancellationToken).ConfigureAwait(false);
         if (finished)
         {
             var id = new AutoUpdaterId(@event.BoundedContext, @event.Id.Tenant);

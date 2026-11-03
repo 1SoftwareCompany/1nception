@@ -74,8 +74,14 @@ public class RebuildIndex_EventToAggregateRootId_Job : InceptionJob<RebuildIndex
         logger.LogInformation("Max degree of parallelism is {max_dop}.", options.MaxDegreeOfParallelism);
 
         startTimestamp = Stopwatch.GetTimestamp();
-        await eventStorePlayer.EnumerateEventStore(@operator, options).ConfigureAwait(false);
+        await eventStorePlayer.EnumerateEventStore(@operator, options, cancellationToken).ConfigureAwait(false);
         var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            logger.LogInformation("A job has been cancelled.");
+            return JobExecutionStatus.Running;
+        }
 
         Data.IsCompleted = true;
         Data = await cluster.PingAsync(Data).ConfigureAwait(false);

@@ -119,6 +119,11 @@ not implement remote request cancellation.
   Background/custom callers can supply a token to
   `DefaultContextFactory.Create(target, provider, token)` or
   `ProjectionStream.RestoreFromHistoryAsync(projection, token)`.
+- Loading an aggregate also uses the token of the scoped `InceptionContext`, both
+  while reading its events and while replaying them. A load is read-only, so a
+  cancelled load is simply redelivered and starts over.
+- `IEventStorePlayer.EnumerateEventStore` returns normally when cancelled, without
+  calling `OnFinish`. Callers must check the token before treating it as complete.
 - Existing long-running cluster jobs still have their own cancellation and
   error policies. The built-in job-starting handlers now pass their token and
   do not finalize a request after their handling token was cancelled.

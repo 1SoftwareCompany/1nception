@@ -40,6 +40,7 @@ public sealed class InceptionHost : IInceptionHost
     private readonly JobManager jobManager;
     private readonly IServiceProvider serviceProvider;
     private InceptionHostOptions hostOptions;
+    private volatile bool stopRequested;
 
     public InceptionHost(
         Booter booter,
@@ -131,10 +132,16 @@ public sealed class InceptionHost : IInceptionHost
             LogHostHasCrashed(logger, ex);
             throw;
         }
+        finally
+        {
+            stopRequested = false; // Consumers can start after a stop that raced with this start, so Dispose must still stop them.
+        }
     }
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
+        stopRequested = true;
+
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(hostOptions.ShutdownTimeout);
 
@@ -185,7 +192,12 @@ public sealed class InceptionHost : IInceptionHost
         }
     }
 
-    public void Dispose() => StopAsync().GetAwaiter().GetResult();
+    public void Dispose()
+    {
+        // A second stop would wait for a second deadline, and the DI container can dispose the host on the thread that is running the first deadline's callbacks.
+        if (stopRequested == false)
+            StopAsync().GetAwaiter().GetResult();
+    }
 
     private void Changed(InceptionHostOptions newOptions)
     {

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.Unicode;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace One.Inception.AutoUpdates
@@ -32,7 +33,7 @@ namespace One.Inception.AutoUpdates
 
         public string Name => "AddMessageIdToAllEventsAutoUpdate";
 
-        public async Task<bool> ApplyAsync()
+        public async Task<bool> ApplyAsync(CancellationToken cancellationToken)
         {
             try
             {
@@ -92,11 +93,14 @@ namespace One.Inception.AutoUpdates
 
                 PlayerOptions options = options = new PlayerOptions();
 
-                await player.EnumerateEventStore(@operator, options).ConfigureAwait(false);
+                await player.EnumerateEventStore(@operator, options, cancellationToken).ConfigureAwait(false);
+
+                cancellationToken.ThrowIfCancellationRequested(); // the enumeration stops silently and this update must not be marked as finished
 
                 return true;
 
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; } // redelivered after the restart, already migrated events are skipped
             catch (System.Exception ex) when (True(() => logger.LogError(ex, "Error while executing AddMessageIdToAllEventsAutoUpdate for tenant {tenant}.", inceptionContextAccessor.Context.Tenant))) { return false; }
         }
     }
