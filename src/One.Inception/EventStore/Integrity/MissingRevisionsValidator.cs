@@ -20,12 +20,11 @@ public sealed class MissingRevisionsValidator : IValidator<EventStream>
 
     private IEnumerable<string> GetErrorMessages(EventStream eventStream)
     {
-        HashSet<int> revisions = eventStream.Commits.Select(x => x.Revision).ToHashSet();
-        int maxRevision = revisions.Count > 0 ? revisions.Max() : 0;
+        int maxRevision = eventStream.Commits.Any() ? eventStream.Commits.Max(r => r.Revision) : 0;
 
         for (int expectedRevision = 1; expectedRevision <= maxRevision; expectedRevision++)
         {
-            if (revisions.Contains(expectedRevision) == false)
+            if (eventStream.Commits.Any(x => x.Revision == expectedRevision) == false)
             {
                 yield return $"Missing {nameof(AggregateCommit)} revision '{expectedRevision}'.";
             }
