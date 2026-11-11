@@ -19,7 +19,7 @@ public class When_versions_fail_to_load_for_event_sourced_projection
 
     Because of = () => error = Catch.Exception(() => repository.SaveAsync(typeof(PersistedHandlerProjection)));
 
-    It should_let_the_retry_workflow_see_the_failure = () => error.Message.ShouldContain("cassandra is down");
+    It should_not_throw_when_versions_fail_to_load = () => error.ShouldBeNull();
     It should_not_save_anything = () => repository.Store.Saved.ShouldBeEmpty();
 
     static ProjectionRepositoryFixture repository;
@@ -33,7 +33,7 @@ public class When_versions_fail_to_load_for_projection_definition
 
     Because of = () => error = Catch.Exception(() => repository.SaveAsync(typeof(DefinitionProjection)));
 
-    It should_let_the_retry_workflow_see_the_failure = () => error.Message.ShouldContain("cassandra is down");
+    It should_not_throw_when_versions_fail_to_load = () => error.ShouldBeNull();
     It should_not_save_anything = () => repository.Store.Saved.ShouldBeEmpty();
 
     static ProjectionRepositoryFixture repository;
@@ -46,6 +46,19 @@ public class When_loading_versions_is_canceled_for_event_sourced_projection
     Establish context = () => repository = new ProjectionRepositoryFixture(new CancellationToken(true), onLoadVersions: _ => throw new OperationCanceledException());
 
     Because of = () => error = Catch.Exception(() => repository.SaveAsync(typeof(PersistedHandlerProjection)));
+
+    It should_not_swallow_the_cancellation = () => error.ShouldBeAssignableTo<OperationCanceledException>();
+
+    static ProjectionRepositoryFixture repository;
+    static Exception error;
+}
+
+[Subject("ProjectionRepository")]
+public class When_loading_versions_is_canceled_for_projection_definition
+{
+    Establish context = () => repository = new ProjectionRepositoryFixture(new CancellationToken(true), onLoadVersions: _ => throw new OperationCanceledException());
+
+    Because of = () => error = Catch.Exception(() => repository.SaveAsync(typeof(DefinitionProjection)));
 
     It should_not_swallow_the_cancellation = () => error.ShouldBeAssignableTo<OperationCanceledException>();
 

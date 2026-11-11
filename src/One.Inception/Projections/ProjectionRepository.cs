@@ -71,7 +71,10 @@ public partial class ProjectionRepository : IProjectionWriter, IProjectionReader
                             }
                         }
                     }
-                    ThrowIfVersionsFailedToLoad(result, projectionName, @event);
+                    if (result.HasError)
+                    {
+                        log.LogError("Failed to update projection because the projection version failed to load. Please replay the projection to restore the state. Self-heal hint!" + Environment.NewLine + result.Error + Environment.NewLine + $"\tProjectionName:{projectionName}" + Environment.NewLine + $"\tEvent:{@event}");
+                    }
                 }
             }
 
@@ -100,16 +103,13 @@ public partial class ProjectionRepository : IProjectionWriter, IProjectionReader
             IProjection projection = handlerInstance.Current as IProjection;
             if (projection is not null)
             {
-                bool shouldBePersisted = projectionType.IsPersistedProjection();
-                if (shouldBePersisted == false)
-                    return;
-
-                // Outside of the try below, because a failed load must reach the retry workflow instead of being swallowed.
-                ReadResult<ProjectionVersions> result = await GetProjectionVersionsAsync(projectionName).ConfigureAwait(false);
-                ThrowIfVersionsFailedToLoad(result, projectionName, @event);
-
                 try
                 {
+                    bool shouldBePersisted = projectionType.IsPersistedProjection();
+                    if (shouldBePersisted == false)
+                        return;
+
+                    ReadResult<ProjectionVersions> result = await GetProjectionVersionsAsync(projectionName).ConfigureAwait(false);
                     if (result.IsSuccess)
                     {
                         foreach (ProjectionVersion version in result.Data)
@@ -126,19 +126,13 @@ public partial class ProjectionRepository : IProjectionWriter, IProjectionReader
                             }
                         }
                     }
+                    if (result.HasError)
+                    {
+                        log.LogError("Failed to update projection because the projection version failed to load. Please replay the projection to restore the state. Self-heal hint!" + Environment.NewLine + result.Error + Environment.NewLine + $"\tProjectionName:{projectionName}" + Environment.NewLine + $"\tEvent:{@event}");
+                    }
                 }
                 catch (Exception ex) when ((ex is not OperationCanceledException || !contextAccessor.Context.CancellationToken.IsCancellationRequested) && ExceptionFilter.True(() => LogProjectionWriteError(log, ex))) { }
             }
-        }
-    }
-
-    private static void ThrowIfVersionsFailedToLoad(ReadResult<ProjectionVersions> result, string projectionName, IEvent @event)
-    {
-        if (result.HasError)
-        {
-            string error = "Failed to update projection because the projection version failed to load. Please replay the projection to restore the state. Self-heal hint!" + Environment.NewLine + result.Error + Environment.NewLine + $"\tProjectionName:{projectionName}" + Environment.NewLine + $"\tEvent:{@event}";
-            log.LogError(error);
-            throw new Exception(error);
         }
     }
 
