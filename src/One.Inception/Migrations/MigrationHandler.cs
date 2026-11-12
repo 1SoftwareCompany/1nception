@@ -1,4 +1,5 @@
 ﻿using System.Runtime.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using One.Inception.EventStore;
 using One.Inception.EventStore.Index;
@@ -16,7 +17,7 @@ public sealed class MigrationHandler : IMigrationHandler,
         this.migrator = migrator;
     }
 
-    public Task HandleAsync(AggregateCommit aggregateCommit)
+    public Task HandleAsync(AggregateCommit aggregateCommit, CancellationToken cancellationToken)
     {
         return migrator.MigrateAsync(aggregateCommit);
     }

@@ -3,6 +3,7 @@ using One.Inception.EventStore.AutoUpdater.Commands;
 using One.Inception.EventStore.AutoUpdater.Events;
 using System;
 using System.Runtime.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace One.Inception.AutoUpdates;
@@ -18,10 +19,10 @@ public class AutoUpdateProcessManager : ProcessManager, ISystemProcessManager, /
         this.strategy = strategy;
     }
 
-    public async Task HandleAsync(AutoUpdateTriggered @event)
+    public async Task HandleAsync(AutoUpdateTriggered @event, CancellationToken cancellationToken)
     {
         IAutoUpdate updater = strategy.GetInstanceFor(@event.Name);
-        bool finished = await updater.ApplyAsync().ConfigureAwait(false);
+        bool finished = await updater.ApplyAsync(cancellationToken).ConfigureAwait(false);
         if (finished)
         {
             var id = new AutoUpdaterId(@event.BoundedContext, @event.Id.Tenant);

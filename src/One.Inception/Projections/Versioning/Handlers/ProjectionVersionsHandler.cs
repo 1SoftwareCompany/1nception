@@ -1,4 +1,5 @@
 ﻿using System.Runtime.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace One.Inception.Projections.Versioning;
@@ -22,35 +23,35 @@ public class ProjectionVersionsHandler : ProjectionDefinition<ProjectionVersions
         Subscribe<ProjectionVersionRequestPaused>(x => x.Id);
     }
 
-    public Task HandleAsync(ProjectionVersionRequested @event)
+    public Task HandleAsync(ProjectionVersionRequested @event, CancellationToken cancellationToken)
     {
         State.Id = @event.Id;
         State.AllVersions.Add(@event.Version);
         return Task.CompletedTask;
     }
 
-    public Task HandleAsync(NewProjectionVersionIsNowLive @event)
+    public Task HandleAsync(NewProjectionVersionIsNowLive @event, CancellationToken cancellationToken)
     {
         State.Id = @event.Id;
         State.AllVersions.Add(@event.ProjectionVersion);
         return Task.CompletedTask;
     }
 
-    public Task HandleAsync(ProjectionVersionRequestCanceled @event)
+    public Task HandleAsync(ProjectionVersionRequestCanceled @event, CancellationToken cancellationToken)
     {
         State.Id = @event.Id;
         State.AllVersions.Add(@event.Version);
         return Task.CompletedTask;
     }
 
-    public Task HandleAsync(ProjectionVersionRequestTimedout @event)
+    public Task HandleAsync(ProjectionVersionRequestTimedout @event, CancellationToken cancellationToken)
     {
         State.Id = @event.Id;
         State.AllVersions.Add(@event.Version);
         return Task.CompletedTask;
     }
 
-    public Task HandleAsync(ProjectionVersionRequestPaused @event)
+    public Task HandleAsync(ProjectionVersionRequestPaused @event, CancellationToken cancellationToken)
     {
         State.Id = @event.Id;
         State.AllVersions.Add(@event.Version);

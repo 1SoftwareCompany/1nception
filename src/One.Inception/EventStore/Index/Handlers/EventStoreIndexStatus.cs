@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Threading;
+using System.Threading.Tasks;
 using System.Runtime.Serialization;
 using One.Inception.Projections;
 
@@ -17,7 +18,7 @@ public sealed class EventStoreIndexStatus : ProjectionDefinition<EventStoreIndex
         Subscribe<EventStoreIndexIsNowPresent>(x => x.Id);
     }
 
-    public Task HandleAsync(EventStoreIndexRequested @event)
+    public Task HandleAsync(EventStoreIndexRequested @event, CancellationToken cancellationToken)
     {
         State.Id = @event.Id;
         State.Status = IndexStatus.Building;
@@ -25,7 +26,7 @@ public sealed class EventStoreIndexStatus : ProjectionDefinition<EventStoreIndex
         return Task.CompletedTask;
     }
 
-    public Task HandleAsync(EventStoreIndexIsNowPresent @event)
+    public Task HandleAsync(EventStoreIndexIsNowPresent @event, CancellationToken cancellationToken)
     {
         State.Id = @event.Id;
         State.Status = IndexStatus.Present;

@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Machine.Specifications;
@@ -87,7 +88,7 @@ public class When_the_bootstrap_fails_on_the_nodes
     {
         cluster = new FakeCluster();
         nodes = ClusterNodes.Create(cluster, 3, "pruvit");
-        foreach (var node in nodes) node.FailClusterWideStartups(times: 1);
+        foreach (var node in nodes) node.FailClusterWideStartups(times: int.MaxValue);
     };
 
     Because of = () =>
@@ -96,13 +97,15 @@ public class When_the_bootstrap_fails_on_the_nodes
         nodes.WaitUntilIdle();
     };
 
-    It should_complete_the_cluster_wide_startups_once = () => nodes.ClusterWideCompleted("iskambira4").ShouldEqual(ClusterNode.ClusterWideStartupsCount);
+    It should_try_it_on_a_single_node = () => nodes.ClusterWideStarted("iskambira4").ShouldEqual(1);
 
-    It should_bootstrap_the_tenant_on_every_node = () => nodes.ShouldEachConformTo(node => node.BootstrappedTenants.Contains("iskambira4") && node.NodeCompleted("iskambira4") >= ClusterNode.NodeStartupsCount);
+    It should_log_the_failure_on_that_node = () => nodes.Count(node => node.Log.Errors.Any(entry => entry.Contains("Failed to bootstrap tenant iskambira4"))).ShouldEqual(1);
 
-    It should_keep_the_completed_bootstrap_in_the_cluster = () => cluster.IsCompleted("iskambira4").ShouldBeTrue();
+    It should_keep_the_failure_so_the_other_nodes_do_not_try_it = () => cluster.FailureOf("iskambira4").ShouldEqual("Cassandra is not reachable");
 
-    It should_not_restart_any_node = () => nodes.AnyStopRequested().ShouldBeFalse();
+    It should_add_the_tenant_on_every_node = () => nodes.ShouldEachConformTo(node => node.BootstrappedTenants.Contains("iskambira4"));
+
+    It should_keep_every_node_running = () => nodes.AnyStopRequested().ShouldBeFalse();
 
     It should_never_run_the_cluster_wide_startups_in_parallel = () => cluster.Violations.ShouldBeEmpty();
 
@@ -111,29 +114,92 @@ public class When_the_bootstrap_fails_on_the_nodes
 }
 
 [Subject("Booter in a cluster")]
-public class When_the_bootstrap_keeps_failing_on_the_nodes
+public class When_a_tenant_which_has_failed_to_bootstrap_is_removed_and_added_again
 {
     Establish context = () =>
     {
         cluster = new FakeCluster();
         nodes = ClusterNodes.Create(cluster, 3, "pruvit");
-        foreach (var node in nodes) node.FailClusterWideStartups(times: int.MaxValue);
+        foreach (var node in nodes) node.FailClusterWideStartups(times: 1);
+        nodes.AddTenant("iskambira4");
+        nodes.WaitUntilIdle();
+        foreach (var node in nodes) node.FailClusterWideStartups(times: 0);
     };
 
     Because of = () =>
     {
+        nodes.RemoveTenant("iskambira4");
+        nodes.WaitUntilIdle();
         nodes.AddTenant("iskambira4");
-        BooterServices.WaitUntil(() => nodes.All(node => node.Lifetime.StopRequested));
+        nodes.WaitUntilIdle();
     };
 
-    It should_restart_every_node = () => nodes.ShouldEachConformTo(node => node.Lifetime.StopRequested);
+    It should_bootstrap_it_again = () => nodes.ClusterWideCompleted("iskambira4").ShouldEqual(ClusterNode.ClusterWideStartupsCount);
 
-    It should_not_mark_the_tenant_as_bootstrapped = () => cluster.IsCompleted("iskambira4").ShouldBeFalse();
+    It should_forget_the_failure = () => cluster.FailureOf("iskambira4").ShouldBeNull();
 
-    It should_never_run_the_cluster_wide_startups_in_parallel = () => cluster.Violations.ShouldBeEmpty();
+    It should_mark_it_as_bootstrapped = () => cluster.IsCompleted("iskambira4").ShouldBeTrue();
 
     static FakeCluster cluster;
     static ClusterNode[] nodes;
+}
+
+[Subject("Booter in a cluster")]
+public class When_a_pod_restarts_after_the_bootstrap_of_a_tenant_has_failed
+{
+    Establish context = () =>
+    {
+        cluster = new FakeCluster();
+        var node = new ClusterNode("node1", cluster, ["pruvit"]);
+        node.FailClusterWideStartups(times: 1);
+        node.AddTenant("iskambira4");
+        new[] { node }.WaitUntilIdle();
+
+        restarted = new ClusterNode("node1-restarted", cluster, ["pruvit", "iskambira4"]);
+    };
+
+    Because of = () => exception = Catch.Exception(() => restarted.StartAsync().GetAwaiter().GetResult());
+
+    It should_start = () => exception.ShouldBeNull();
+
+    It should_bootstrap_the_failed_tenant_again = () => restarted.ClusterWideCompleted("iskambira4").ShouldEqual(ClusterNode.ClusterWideStartupsCount);
+
+    It should_forget_the_failure = () => cluster.FailureOf("iskambira4").ShouldBeNull();
+
+    static FakeCluster cluster;
+    static ClusterNode restarted;
+    static Exception exception;
+}
+
+[Subject("Booter in a cluster")]
+public class When_a_pod_restarts_and_the_bootstrap_of_a_failed_tenant_fails_again
+{
+    Establish context = () =>
+    {
+        cluster = new FakeCluster();
+        var node = new ClusterNode("node1", cluster, ["pruvit"]);
+        node.StartAsync().GetAwaiter().GetResult();
+        node.FailClusterWideStartups(times: 1);
+        node.AddTenant("iskambira4");
+        new[] { node }.WaitUntilIdle();
+
+        restarted = new ClusterNode("node1-restarted", cluster, ["pruvit", "iskambira4"]);
+        restarted.FailClusterWideStartups(times: 1, tenant: "iskambira4");
+    };
+
+    Because of = () => exception = Catch.Exception(() => restarted.StartAsync().GetAwaiter().GetResult());
+
+    It should_try_it_again = () => restarted.ClusterWideStarted("iskambira4").ShouldEqual(1);
+
+    It should_start_so_one_broken_tenant_does_not_stop_the_service = () => exception.ShouldBeNull();
+
+    It should_log_the_failure = () => restarted.Log.Errors.ShouldContain(entry => entry.Contains("Failed to bootstrap tenant iskambira4"));
+
+    It should_keep_the_failure = () => cluster.FailureOf("iskambira4").ShouldNotBeNull();
+
+    static FakeCluster cluster;
+    static ClusterNode restarted;
+    static Exception exception;
 }
 
 [Subject("Booter in a cluster")]
@@ -458,6 +524,81 @@ public class When_a_tenant_is_added_and_removed_while_the_node_is_busy
 
     static FakeCluster cluster;
     static ClusterNode node;
+}
+
+[Subject("Booter in a cluster")]
+public class When_the_pod_which_bootstraps_a_tenant_is_stopped
+{
+    Establish context = () =>
+    {
+        cluster = new FakeCluster();
+        nodes = ClusterNodes.Create(cluster, 2, "pruvit");
+        foreach (ClusterNode node in nodes) node.StartAsync().GetAwaiter().GetResult();
+        foreach (ClusterNode node in nodes) node.Block();
+
+        nodes.AddTenant("iskambira4");
+        BooterServices.WaitUntil(() => nodes.ClusterWideStarted("iskambira4") > 0);
+        holder = nodes.Single(node => node.ClusterWideStarted("iskambira4") > 0);
+        other = nodes.Single(node => node != holder);
+    };
+
+    Because of = () =>
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        other.Unblock();
+        holder.Stop();
+        BooterServices.WaitUntil(() => other.ClusterWideCompleted("iskambira4") == ClusterNode.ClusterWideStartupsCount);
+        elapsed = stopwatch.Elapsed;
+        holder.Unblock();
+    };
+
+    It should_let_another_pod_bootstrap_the_tenant = () => other.ClusterWideCompleted("iskambira4").ShouldEqual(ClusterNode.ClusterWideStartupsCount);
+
+    It should_release_the_bootstrap_right_away = () => elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(2)); // the wait for a pod which holds the bootstrap is 5 seconds
+
+    It should_mark_the_tenant_as_bootstrapped = () => cluster.IsCompleted("iskambira4").ShouldBeTrue();
+
+    static FakeCluster cluster;
+    static ClusterNode[] nodes;
+    static ClusterNode holder;
+    static ClusterNode other;
+    static TimeSpan elapsed;
+}
+
+[Subject("Booter in a cluster")]
+public class When_a_tenant_is_removed_while_a_pod_waits_at_start
+{
+    Establish context = () =>
+    {
+        cluster = new FakeCluster();
+        nodes = ClusterNodes.Create(cluster, 1, "pruvit");
+        nodes[0].StartAsync().GetAwaiter().GetResult();
+        nodes[0].Block();
+        nodes.AddTenant("iskambira4");
+        BooterServices.WaitUntil(() => nodes.ClusterWideStarted("iskambira4") > 0);
+    };
+
+    Because of = () =>
+    {
+        // the pod waits for the node which is bootstrapping iskambira4, and iskambira5 is removed meanwhile
+        started = new ClusterNode("started", cluster, ["pruvit", "iskambira4", "iskambira5"]);
+        Task starting = started.StartAsync();
+        Task.Delay(200).GetAwaiter().GetResult();
+        started.RemoveTenant("iskambira5");
+
+        nodes[0].Unblock();
+        exception = Catch.Exception(() => starting.GetAwaiter().GetResult());
+        nodes.Append(started).WaitUntilIdle();
+    };
+
+    It should_start = () => exception.ShouldBeNull();
+
+    It should_not_have_the_removed_tenant = () => started.BootstrappedTenants.ShouldNotContain("iskambira5");
+
+    static FakeCluster cluster;
+    static ClusterNode[] nodes;
+    static ClusterNode started;
+    static Exception exception;
 }
 
 [Subject("Booter in a cluster")]

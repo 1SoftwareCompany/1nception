@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
@@ -10,6 +11,8 @@ public class TenantsOptions
     [Required(AllowEmptyStrings = false, ErrorMessage = "The configuration `Inception:Tenants` is required. For more information see here https://github.com/1SoftwareCompany/1nception/blob/master/doc/Configuration.md")]
     [CollectionRegularExpression(@"^\b([\w\d_]+$)")]
     public IEnumerable<string> Tenants { get; set; }
+
+    public IEnumerable<string> TenantsBeingDeleted { get; set; } = Array.Empty<string>();
 }
 
 public class TenantsOptionsProvider : InceptionOptionsProviderBase<TenantsOptions>
@@ -24,5 +27,7 @@ public class TenantsOptionsProvider : InceptionOptionsProviderBase<TenantsOption
             .GetSection(SettingKey).Get<string[]>()
             ?.Select(x => x.ToLower().Trim())
             ?.Distinct();
+
+        options.TenantsBeingDeleted = configuration.GetSection("inception:tenantsbeingdeleted").Get<string[]>() ?? Array.Empty<string>();
     }
 }

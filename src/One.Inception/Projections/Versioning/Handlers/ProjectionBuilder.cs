@@ -9,6 +9,7 @@ using One.Inception.Workflow;
 using System;
 using System.Linq;
 using System.Runtime.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace One.Inception.Projections.Versioning;
@@ -43,7 +44,7 @@ public sealed class ProjectionBuilder : ProcessManager, ISystemProcessManager,
         monitor.OnChange(OptionsForTenantReloaded);
     }
 
-    public Task HandleAsync(ProjectionVersionRequested @event)
+    public Task HandleAsync(ProjectionVersionRequested @event, CancellationToken cancellationToken)
     {
         var startRebuildAt = @event.Timebox.RequestStartAt;
         if (startRebuildAt.AddMinutes(5) > DateTime.UtcNow && @event.Timebox.HasExpired == false)
@@ -55,7 +56,7 @@ public sealed class ProjectionBuilder : ProcessManager, ISystemProcessManager,
         return Task.CompletedTask;
     }
 
-    public Task HandleAsync(ProjectionVersionRequestPaused @event)
+    public Task HandleAsync(ProjectionVersionRequestPaused @event, CancellationToken cancellationToken)
     {
         var job = GetJob(@event.Version, new ReplayEventsOptions(), new VersionRequestTimebox(@event.Timestamp.DateTime));
 
@@ -82,7 +83,7 @@ public sealed class ProjectionBuilder : ProcessManager, ISystemProcessManager,
         return job;
     }
 
-    public async Task HandleAsync(CreateNewProjectionVersion processManagersTimeout)
+    public async Task HandleAsync(CreateNewProjectionVersion processManagersTimeout, CancellationToken cancellationToken)
     {
         if (tenants.Tenants.Contains(processManagersTimeout.Tenant) == false)
         {
@@ -91,7 +92,8 @@ public sealed class ProjectionBuilder : ProcessManager, ISystemProcessManager,
         }
 
         IInceptionJob<object> job = GetJob(processManagersTimeout.ProjectionVersionRequest.Version, processManagersTimeout.ProjectionVersionRequest.ReplayEventsOptions, processManagersTimeout.ProjectionVersionRequest.Timebox);
-        JobExecutionStatus result = await jobRunner.ExecuteAsync(job).ConfigureAwait(false);
+        JobExecutionStatus result = await jobRunner.ExecuteAsync(job, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         LogProjectionReplayStatus(logger, result, null);
 
         if (result == JobExecutionStatus.Running)
@@ -118,7 +120,7 @@ public sealed class ProjectionBuilder : ProcessManager, ISystemProcessManager,
         }
     }
 
-    public Task HandleAsync(ProjectionVersionRequestHeartbeat processManagerTimeout)
+    public Task HandleAsync(ProjectionVersionRequestHeartbeat processManagerTimeout, CancellationToken cancellationToken)
     {
         var timedout = new TimeoutProjectionVersionRequest(processManagerTimeout.ProjectionVersionRequest.Id, processManagerTimeout.ProjectionVersionRequest.Version, processManagerTimeout.ProjectionVersionRequest.Timebox);
 

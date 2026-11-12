@@ -7,7 +7,7 @@ namespace One.Inception;
 
 public static class Log
 {
-    public const string Tenant = "inception_tenant";
+    public const string Tenant = "tenant";
     public const string AggregateId = "inception_arid";
     public const string AggregateName = "inception_arname";
 

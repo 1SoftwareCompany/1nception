@@ -1,4 +1,5 @@
 ﻿using One.Inception.EventStore.AutoUpdater.Commands;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace One.Inception.EventStore.AutoUpdater;
@@ -11,7 +12,7 @@ public class AutoUpdaterApplicationService : ApplicationService<AutoUpdater>, IS
 {
     public AutoUpdaterApplicationService(IAggregateRepository repository) : base(repository) { }
 
-    public async Task HandleAsync(RequestAutoUpdate command)
+    public async Task HandleAsync(RequestAutoUpdate command, CancellationToken cancellationToken)
     {
         var result = await repository.LoadAsync<AutoUpdater>(command.Id);
         if (result.NotFound)
@@ -27,7 +28,7 @@ public class AutoUpdaterApplicationService : ApplicationService<AutoUpdater>, IS
         }
     }
 
-    public async Task HandleAsync(BulkRequestAutoUpdate command)
+    public async Task HandleAsync(BulkRequestAutoUpdate command, CancellationToken cancellationToken)
     {
         var result = await repository.LoadAsync<AutoUpdater>(command.Id);
         if (result.NotFound)
@@ -43,7 +44,7 @@ public class AutoUpdaterApplicationService : ApplicationService<AutoUpdater>, IS
         }
     }
 
-    public async Task HandleAsync(FinishAutoUpdate command)
+    public async Task HandleAsync(FinishAutoUpdate command, CancellationToken cancellationToken)
     {
         var result = await repository.LoadAsync<AutoUpdater>(command.Id);
         if (result.IsSuccess)
@@ -53,7 +54,7 @@ public class AutoUpdaterApplicationService : ApplicationService<AutoUpdater>, IS
         }
     }
 
-    public async Task HandleAsync(FailAutoUpdate command)
+    public async Task HandleAsync(FailAutoUpdate command, CancellationToken cancellationToken)
     {
         var result = await repository.LoadAsync<AutoUpdater>(command.Id);
         if (result.IsSuccess)

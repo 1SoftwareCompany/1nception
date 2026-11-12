@@ -1,9 +1,10 @@
-﻿using System.Threading.Tasks;
+﻿using System.Threading;
+using System.Threading.Tasks;
 
 namespace One.Inception.EventStore.Index;
 
 public interface IAggregateCommitHandle<in T>
     where T : AggregateCommit
 {
-    Task HandleAsync(T @event);
+    Task HandleAsync(T @event, CancellationToken cancellationToken);
 }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using One.Inception.Workflow;
 
@@ -23,9 +24,10 @@ public abstract class SubscriberBase : ISubscriber
 
     public Type HandlerType => handlerType;
 
-    public Task ProcessAsync(InceptionMessage message)
+    public Task ProcessAsync(InceptionMessage message, CancellationToken cancellationToken = default)
     {
-        var context = new HandleContext(message, handlerType);
+        cancellationToken.ThrowIfCancellationRequested();
+        var context = new HandleContext(message, handlerType, cancellationToken);
         return handlerWorkflow.RunAsync(context);
     }
 

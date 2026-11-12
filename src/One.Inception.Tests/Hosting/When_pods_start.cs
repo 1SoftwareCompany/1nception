@@ -14,9 +14,19 @@ public class When_pods_of_the_same_build_start_together
     {
         cluster = new FakeCluster();
         nodes = ClusterNodes.Create(cluster, 5, "pruvit", "shoply");
+        foreach (ClusterNode node in nodes) node.Block();
     };
 
-    Because of = () => Task.WhenAll(nodes.Select(node => node.StartAsync())).GetAwaiter().GetResult();
+    Because of = () =>
+    {
+        // all pods have started before the first one finishes the bootstrap
+        Task starting = Task.WhenAll(nodes.Select(node => node.StartAsync()));
+        BooterServices.WaitUntil(() => nodes.ClusterWideStarted("pruvit") > 0 && nodes.ClusterWideStarted("shoply") > 0);
+        Task.Delay(100).GetAwaiter().GetResult();
+
+        foreach (ClusterNode node in nodes) node.Unblock();
+        starting.GetAwaiter().GetResult();
+    };
 
     It should_run_the_cluster_wide_startups_once_per_tenant = () =>
     {
@@ -48,7 +58,7 @@ public class When_a_pod_restarts_with_the_same_build
 
     Because of = () => restarted.StartAsync().GetAwaiter().GetResult();
 
-    It should_not_run_the_cluster_wide_startups_again = () => restarted.ClusterWideStarted("pruvit").ShouldEqual(0);
+    It should_run_the_cluster_wide_startups_again_so_a_restart_repairs_the_tenant = () => restarted.ClusterWideCompleted("pruvit").ShouldEqual(ClusterNode.ClusterWideStartupsCount);
 
     It should_run_its_node_startups = () => restarted.StartCalls.ShouldBeGreaterThanOrEqualTo(ClusterNode.NodeStartupsCount);
 
@@ -75,9 +85,7 @@ public class When_a_new_build_is_deployed
             pod.StartAsync().GetAwaiter().GetResult();
     };
 
-    It should_run_the_cluster_wide_startups_once_for_the_new_build = () => newPods.ClusterWideCompleted("pruvit").ShouldEqual(ClusterNode.ClusterWideStartupsCount);
-
-    It should_run_them_on_the_first_new_pod = () => newPods[0].ClusterWideCompleted("pruvit").ShouldEqual(ClusterNode.ClusterWideStartupsCount);
+    It should_run_the_cluster_wide_startups_on_every_new_pod_like_any_restart = () => newPods.ShouldEachConformTo(pod => pod.ClusterWideCompleted("pruvit") == ClusterNode.ClusterWideStartupsCount);
 
     It should_remember_the_new_build = () => cluster.CompletedBy("pruvit").ShouldEqual("build-2");
 
@@ -223,11 +231,21 @@ public class When_a_pod_skips_the_bootstrap_of_the_tenants
     Establish context = () =>
     {
         cluster = new FakeCluster();
-        new ClusterNode("node1", cluster, ["pruvit"]).StartAsync().GetAwaiter().GetResult();
+        node1 = new ClusterNode("node1", cluster, ["pruvit"]);
+        node1.Block();
+        node1Starting = node1.StartAsync();
+        BooterServices.WaitUntil(() => node1.ClusterWideStarted("pruvit") > 0);
         restarted = new ClusterNode("node1-restarted", cluster, ["pruvit"]);
     };
 
-    Because of = () => restarted.StartAsync().GetAwaiter().GetResult();
+    Because of = () =>
+    {
+        // the pod starts while node1 bootstraps the tenant, so it skips the bootstrap
+        Task starting = restarted.StartAsync();
+        Task.Delay(100).GetAwaiter().GetResult();
+        node1.Unblock();
+        Task.WhenAll(node1Starting, starting).GetAwaiter().GetResult();
+    };
 
     It should_skip_the_bootstrap = () => restarted.ClusterWideStarted("pruvit").ShouldEqual(0);
 
@@ -235,6 +253,8 @@ public class When_a_pod_skips_the_bootstrap_of_the_tenants
     It should_find_the_types_by_their_contracts = () => ContractOnlyKnownByItsAttribute.Contract.GetTypeByContract().ShouldEqual(typeof(ContractOnlyKnownByItsAttribute));
 
     static FakeCluster cluster;
+    static ClusterNode node1;
+    static Task node1Starting;
     static ClusterNode restarted;
 }
 

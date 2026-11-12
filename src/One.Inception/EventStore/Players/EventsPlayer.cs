@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using One.Inception.Cluster.Job;
 using Microsoft.Extensions.Logging;
@@ -24,29 +25,33 @@ public sealed class EventsPlayer : ISystemTrigger,
         this.logger = logger;
     }
 
-    public async Task HandleAsync(ReplayPublicEventsRequested signal)
+    public async Task HandleAsync(ReplayPublicEventsRequested signal, CancellationToken cancellationToken)
     {
         try
         {
             ReplayPublicEvents_Job job = publicJobFactory.CreateJob(signal);
-            JobExecutionStatus result = await jobRunner.ExecuteAsync(job).ConfigureAwait(false);
+            JobExecutionStatus result = await jobRunner.ExecuteAsync(job, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
 
             if (logger.IsEnabled(LogLevel.Debug))
                 logger.LogDebug("Replay public events finished.");
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex) when (True(() => logger.LogError(ex, "Failed to replay public events."))) { }
     }
 
-    public async Task HandleAsync(ReplayInternalEventsRequested signal)
+    public async Task HandleAsync(ReplayInternalEventsRequested signal, CancellationToken cancellationToken)
     {
         try
         {
             ReplayInternalEvents_Job job = internalJobFactory.CreateJob(signal);
-            JobExecutionStatus result = await jobRunner.ExecuteAsync(job).ConfigureAwait(false);
+            JobExecutionStatus result = await jobRunner.ExecuteAsync(job, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
 
             if (logger.IsEnabled(LogLevel.Debug))
                 logger.LogDebug("Replay public events finished.");
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex) when (True(() => logger.LogError(ex, "Failed to replay public events."))) { }
     }
 }

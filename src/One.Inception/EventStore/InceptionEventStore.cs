@@ -70,7 +70,7 @@ public class InceptionEventStore : IEventStore
         {
             return await eventStore.LoadAsync(aggregateId).ConfigureAwait(false);
         }
-        catch (Exception ex) when (False(() => logger.LogError(ex, "Failed to load aggregate with ID = {inception_arid}.", aggregateId)))
+        catch (Exception ex) when (ex is not OperationCanceledException && False(() => logger.LogError(ex, "Failed to load aggregate with ID = {inception_arid}.", aggregateId)))
         {
             throw;
         }

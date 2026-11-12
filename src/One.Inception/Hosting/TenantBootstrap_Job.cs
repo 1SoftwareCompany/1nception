@@ -12,35 +12,34 @@ using One.Inception.Cluster.Job;
 namespace One.Inception;
 
 /// <summary>
-/// Runs the cluster wide startups of a tenant on a single node, when the tenant is added and when the nodes start.
-/// The completed state is kept in the cluster together with the build which has run the startups, so the other nodes of the same build do not run them again.
-/// A node of another build runs them again, because the projections and the indices of its build may be different.
+/// Runs the cluster wide startups of a tenant on a single node. The completed state is kept in the cluster with the build, so the other running nodes of the build do not run them again.
+/// A starting node runs them again, unless another node has done it after this node started, so a restart repairs the tenant. A failure is kept too, and if they fail again on a starting node it still starts.
 /// </summary>
 public sealed class TenantBootstrap_Job : InceptionJob<TenantBootstrap_JobData>
 {
     private Func<Task<bool>> bootstrap;
     private string build;
+    private bool isAdded;
+    private DateTimeOffset nodeStartedAt;
     private bool forget;
 
     public TenantBootstrap_Job(ILogger<TenantBootstrap_Job> logger) : base(logger) { }
 
     public override string Name { get; set; } = "tenant-bootstrap";
 
-    /// <summary>
-    /// True when this node has run the cluster wide startups.
-    /// </summary>
     public bool HasBootstrapped { get; private set; }
 
-    /// <summary>
-    /// The exception thrown by the cluster wide startups on this node, if any.
-    /// </summary>
     public Exception BootstrapFailure { get; private set; }
 
-    /// <param name="bootstrap">Runs the startups. Returns false when the tenant has been removed meanwhile and the startups have not run or must not be marked as completed.</param>
-    internal void Bootstrap(Func<Task<bool>> bootstrap, string build)
+    public bool IsFailureKept { get; private set; }
+
+    /// <param name="bootstrap">Returns false when the tenant has been removed meanwhile.</param>
+    internal void Bootstrap(Func<Task<bool>> bootstrap, string build, bool isAdded, DateTimeOffset nodeStartedAt)
     {
         this.bootstrap = bootstrap;
         this.build = build;
+        this.isAdded = isAdded;
+        this.nodeStartedAt = nodeStartedAt;
     }
 
     internal void Forget() => forget = true;
@@ -52,10 +51,25 @@ public sealed class TenantBootstrap_Job : InceptionJob<TenantBootstrap_JobData>
         if (forget)
             return JobExecutionStatus.Completed;
 
+        bool hasFailedBefore = Data.IsCompleted && Data.Build == build && Data.Failure is not null;
         if (Data.IsCompleted && Data.Build == build)
         {
-            logger.LogInformation("The tenant has already been bootstrapped by another node of build {build} at {bootstrappedAt}", build, Data.Timestamp);
-            return JobExecutionStatus.Completed;
+            if (Data.Failure is null && (isAdded || Data.Timestamp >= nodeStartedAt))
+            {
+                logger.LogInformation("The tenant has already been bootstrapped by another node of build {build} at {bootstrappedAt}", build, Data.Timestamp);
+                return JobExecutionStatus.Completed;
+            }
+
+            if (Data.Failure is not null && isAdded)
+            {
+                logger.LogWarning("The bootstrap of the tenant has failed on another node of build {build} at {failedAt}: {failure}. It is not run again on this node", build, Data.Timestamp, Data.Failure);
+                return JobExecutionStatus.Completed;
+            }
+
+            if (Data.Failure is null)
+                logger.LogInformation("The tenant was bootstrapped by build {build} at {bootstrappedAt}, before this node started. It is run again because this node starts", build, Data.Timestamp);
+            else
+                logger.LogInformation("The bootstrap of the tenant has failed on a node of build {build} at {failedAt}: {failure}. It is run again because this node starts", build, Data.Timestamp, Data.Failure);
         }
 
         try
@@ -72,15 +86,25 @@ public sealed class TenantBootstrap_Job : InceptionJob<TenantBootstrap_JobData>
         catch (Exception ex)
         {
             BootstrapFailure = ex;
-            throw;
+            if (isAdded == false && hasFailedBefore == false)
+                throw;
+
+            IsFailureKept = true;
+            await MarkAsCompletedAsync(cluster, failure: ex.Message, cancellationToken).ConfigureAwait(false);
+            return JobExecutionStatus.Completed;
         }
 
+        await MarkAsCompletedAsync(cluster, failure: null, cancellationToken).ConfigureAwait(false);
+        return JobExecutionStatus.Completed;
+    }
+
+    private async Task MarkAsCompletedAsync(IClusterOperations cluster, string failure, CancellationToken cancellationToken)
+    {
         Data.IsCompleted = true;
         Data.Build = build;
+        Data.Failure = failure;
         Data.Timestamp = DateTimeOffset.UtcNow;
         Data = await cluster.PingAsync(Data, cancellationToken).ConfigureAwait(false);
-
-        return JobExecutionStatus.Completed;
     }
 }
 
@@ -88,10 +112,9 @@ public sealed class TenantBootstrap_JobData : IJobData
 {
     public bool IsCompleted { get; set; }
 
-    /// <summary>
-    /// The build which has run the cluster wide startups.
-    /// </summary>
     public string Build { get; set; }
+
+    public string Failure { get; set; }
 
     public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
 }
@@ -114,17 +137,14 @@ public sealed class TenantBootstrap_JobFactory
         this.build = build;
     }
 
-    public TenantBootstrap_Job CreateJob(string tenant, Func<Task<bool>> bootstrap)
+    public TenantBootstrap_Job CreateJob(string tenant, Func<Task<bool>> bootstrap, bool isAdded, DateTimeOffset nodeStartedAt)
     {
         Prepare(tenant);
-        job.Bootstrap(bootstrap, build);
+        job.Bootstrap(bootstrap, build, isAdded, nodeStartedAt);
 
         return job;
     }
 
-    /// <summary>
-    /// Creates a job which removes the completed state of a removed tenant, so the tenant is bootstrapped again if it is added back.
-    /// </summary>
     public TenantBootstrap_Job CreateForgetJob(string tenant)
     {
         Prepare(tenant);
@@ -135,16 +155,14 @@ public sealed class TenantBootstrap_JobFactory
 
     private void Prepare(string tenant)
     {
-        // The application is part of the name because the applications of a bounded context may run different startups.
-        // The build is not part of the name, it is kept in the data, so there is a single key per tenant which is removed with the tenant.
+        // The applications of a bounded context may run different startups. The build is kept in the data, so a tenant has a single key.
         job.Name = $"urn:{boundedContext.Name}:{tenant}:{job.Name}:{ApplicationName}";
         job.BuildInitialData(() => new TenantBootstrap_JobData() { Timestamp = DateTimeOffset.MinValue }); // the state in the cluster always wins, the build decides if it is completed
     }
 }
 
 /// <summary>
-/// Identifies the code of the running application: a hash of all assemblies which Inception loads, so a change in any of them, for example in the assembly with the projections, is a new build.
-/// The compiler builds the same code into the same assembly, so all nodes running the same image have the same build.
+/// A hash of the loaded assemblies. All nodes running the same image have the same build.
 /// </summary>
 internal static class ApplicationBuild
 {

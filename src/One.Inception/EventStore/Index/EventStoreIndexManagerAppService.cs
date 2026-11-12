@@ -1,4 +1,5 @@
 ﻿using System.Runtime.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace One.Inception.EventStore.Index;
@@ -11,7 +12,7 @@ public class EventStoreIndexManagerAppService : ApplicationService<EventStoreInd
 {
     public EventStoreIndexManagerAppService(IAggregateRepository repository) : base(repository) { }
 
-    public async Task HandleAsync(RegisterIndex command)
+    public async Task HandleAsync(RegisterIndex command, CancellationToken cancellationToken)
     {
         EventStoreIndexManager ar = null;
         ReadResult<EventStoreIndexManager> result = await repository.LoadAsync<EventStoreIndexManager>(command.Id).ConfigureAwait(false);
@@ -27,7 +28,7 @@ public class EventStoreIndexManagerAppService : ApplicationService<EventStoreInd
         await repository.SaveAsync(ar).ConfigureAwait(false);
     }
 
-    public async Task HandleAsync(RebuildIndexCommand command)
+    public async Task HandleAsync(RebuildIndexCommand command, CancellationToken cancellationToken)
     {
         EventStoreIndexManager ar = null;
         ReadResult<EventStoreIndexManager> result = await repository.LoadAsync<EventStoreIndexManager>(command.Id).ConfigureAwait(false);
@@ -50,7 +51,7 @@ public class EventStoreIndexManagerAppService : ApplicationService<EventStoreInd
         await repository.SaveAsync(ar).ConfigureAwait(false);
     }
 
-    public async Task HandleAsync(FinalizeEventStoreIndexRequest command)
+    public async Task HandleAsync(FinalizeEventStoreIndexRequest command, CancellationToken cancellationToken)
     {
         EventStoreIndexManager ar = null;
         ReadResult<EventStoreIndexManager> result = await repository.LoadAsync<EventStoreIndexManager>(command.Id).ConfigureAwait(false);

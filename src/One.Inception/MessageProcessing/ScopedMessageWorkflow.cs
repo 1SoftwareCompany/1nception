@@ -39,7 +39,7 @@ public class ScopedMessageWorkflow : Workflow<HandleContext>
             if (scopes.TryAdd(handleContext, scope) == false)
                 hasScopeError = true;
 
-            InceptionContext context = contextFactory.Create(tenant ?? handleContext.Message, scope.ServiceProvider);
+            InceptionContext context = contextFactory.Create(tenant ?? handleContext.Message, scope.ServiceProvider, handleContext.CancellationToken);
             foreach (var header in handleContext.Message.Headers)
             {
                 context.Trace.Add(header.Key, header.Value);

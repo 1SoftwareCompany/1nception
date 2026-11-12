@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace One.Inception.Projections;
@@ -28,7 +29,7 @@ public sealed class ProjectionStream : IEnumerable<IEvent>
         this.events = events;
     }
 
-    public async Task<T> RestoreFromHistoryAsync<T>(T projection) where T : IProjectionDefinition
+    public async Task<T> RestoreFromHistoryAsync<T>(T projection, CancellationToken cancellationToken = default) where T : IProjectionDefinition
     {
         if (events.Any() == false)
             return default(T);
@@ -38,7 +39,8 @@ public sealed class ProjectionStream : IEnumerable<IEvent>
         await projection.InitializeStateAsync(projectionId, null);
         foreach (IEvent @event in eventsOrderedByTimestamp)
         {
-            await projection.ApplyAsync(@event).ConfigureAwait(false);    // Because of the order we need to await each event before replaying the next one.
+            cancellationToken.ThrowIfCancellationRequested();
+            await projection.ApplyAsync(@event, cancellationToken).ConfigureAwait(false);    // Because of the order we need to await each event before replaying the next one.
         }
 
         return projection;

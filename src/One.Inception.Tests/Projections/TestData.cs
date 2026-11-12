@@ -1,6 +1,7 @@
 ﻿using One.Inception.Projections;
 using System;
 using System.Runtime.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace One.Inception.Tests.Projections;
@@ -11,11 +12,11 @@ public class TestProjection : ProjectionDefinition<TestProjectionState, TestProj
     IEventHandle<TestEvent2>,
     IEventHandle<TestEvent3>
 {
-    public Task HandleAsync(TestEvent1 @event) { return Task.CompletedTask; }
+    public Task HandleAsync(TestEvent1 @event, CancellationToken cancellationToken) { return Task.CompletedTask; }
 
-    public Task HandleAsync(TestEvent2 @event) { return Task.CompletedTask; }
+    public Task HandleAsync(TestEvent2 @event, CancellationToken cancellationToken) { return Task.CompletedTask; }
 
-    public Task HandleAsync(TestEvent3 @event) { return Task.CompletedTask; }
+    public Task HandleAsync(TestEvent3 @event, CancellationToken cancellationToken) { return Task.CompletedTask; }
 
     [DataMember(Order = 1)]
     public string Text { get; set; }
@@ -27,11 +28,11 @@ public class TestProjectionShuffled : ProjectionDefinition<TestProjectionState, 
     IEventHandle<TestEvent3>,
     IEventHandle<TestEvent1>
 {
-    public Task HandleAsync(TestEvent1 @event) { return Task.CompletedTask; }
+    public Task HandleAsync(TestEvent1 @event, CancellationToken cancellationToken) { return Task.CompletedTask; }
 
-    public Task HandleAsync(TestEvent2 @event) { return Task.CompletedTask; }
+    public Task HandleAsync(TestEvent2 @event, CancellationToken cancellationToken) { return Task.CompletedTask; }
 
-    public Task HandleAsync(TestEvent3 @event) { return Task.CompletedTask; }
+    public Task HandleAsync(TestEvent3 @event, CancellationToken cancellationToken) { return Task.CompletedTask; }
 
     [DataMember(Order = 1)]
     public string Text { get; set; }
@@ -42,9 +43,9 @@ public class TestProjectionModified : ProjectionDefinition<TestProjectionState, 
     IEventHandle<TestEvent2>,
     IEventHandle<TestEvent1>
 {
-    public Task HandleAsync(TestEvent1 @event) { return Task.CompletedTask; }
+    public Task HandleAsync(TestEvent1 @event, CancellationToken cancellationToken) { return Task.CompletedTask; }
 
-    public Task HandleAsync(TestEvent2 @event) { return Task.CompletedTask; }
+    public Task HandleAsync(TestEvent2 @event, CancellationToken cancellationToken) { return Task.CompletedTask; }
 
     [DataMember(Order = 1)]
     public string Text { get; set; }
@@ -55,8 +56,8 @@ public class TestProjectionHandlersAsc : ProjectionDefinition<TestProjectionStat
     IEventHandle<A>,
     IEventHandle<B>
 {
-    public Task HandleAsync(A @event) => Task.CompletedTask;
-    public Task HandleAsync(B @event) => Task.CompletedTask;
+    public Task HandleAsync(A @event, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task HandleAsync(B @event, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 [DataContract(Name = "desc")]
@@ -64,8 +65,8 @@ public class TestProjectionHandlersDesc : ProjectionDefinition<TestProjectionSta
     IEventHandle<B>,
     IEventHandle<A>
 {
-    public Task HandleAsync(B @event) => Task.CompletedTask;
-    public Task HandleAsync(A @event) => Task.CompletedTask;
+    public Task HandleAsync(B @event, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task HandleAsync(A @event, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 public class TestProjectionState
